@@ -14,10 +14,12 @@ import {
   Pie,
   Cell,
   Legend,
+  BarChart,
+  Bar,
 } from "recharts";
 import { Progress } from "@/components/ui/progress";
 
-import { formatINR, formatDateHelper } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -61,10 +63,12 @@ function Dashboard() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-  const thisMonth = expenses.filter((e) => new Date(e.expense_date) >= monthStart);
+  const thisMonth = expenses.filter(
+    (e) => new Date(e.expense_date) >= monthStart && e.category?.toLowerCase() !== "home-mandatory",
+  );
   const lastMonth = expenses.filter((e) => {
     const d = new Date(e.expense_date);
-    return d >= lastMonthStart && d < monthStart;
+    return d >= lastMonthStart && d < monthStart && e.category?.toLowerCase() !== "home-mandatory";
   });
   const totalThis = thisMonth.reduce((s, e) => s + Number(e.total_paid), 0);
   const totalLast = lastMonth.reduce((s, e) => s + Number(e.total_paid), 0);
@@ -114,13 +118,33 @@ function Dashboard() {
       .filter((d) => d.value > 0);
   }, [thisMonth]);
 
-  const budgetPct = monthBudget > 0 ? Math.min(100, (totalThis / monthBudget) * 100) : 0;
+  const typeData = useMemo(() => {
+    let mandatoryTotal = 0;
+    let discretionaryTotal = 0;
 
-  const sortedExpenses = useMemo(() => {
-    return [...expenses].sort(
-      (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime(),
-    );
-  }, [expenses]);
+    const mandatorySet = new Set(categories.filter((c) => c.is_mandatory).map((c) => c.name));
+
+    for (const e of thisMonth) {
+      if (!e.category) continue;
+      const isMandatory = mandatorySet.has(e.category);
+      if (isMandatory) {
+        mandatoryTotal += Number(e.total_paid);
+      } else {
+        discretionaryTotal += Number(e.total_paid);
+      }
+    }
+
+    return [
+      { name: "Mandatory (Needs)", value: mandatoryTotal, fill: "oklch(0.52 0.14 145)" },
+      { name: "Discretionary (Wants)", value: discretionaryTotal, fill: "oklch(0.48 0.16 275)" },
+    ];
+  }, [thisMonth, categories]);
+
+  const barData = useMemo(() => {
+    return [...pieData].sort((a, b) => b.value - a.value);
+  }, [pieData]);
+
+  const budgetPct = monthBudget > 0 ? Math.min(100, (totalThis / monthBudget) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -240,49 +264,106 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="card-soft p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold">Recent activity</div>
-          <a
-            href="/transactions"
-            className="text-xs text-primary flex items-center gap-1 hover:underline"
-          >
-            View all <ArrowUpRight className="h-3 w-3" />
-          </a>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="card-soft p-5">
+          <div className="text-sm font-semibold mb-3">Mandatory vs. Discretionary Spending</div>
+          {typeData.every((d) => d.value === 0) ? (
+            <div className="h-72 grid place-items-center text-sm text-muted-foreground">
+              No spending records to analyze.
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer>
+                <BarChart data={typeData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid
+                    stroke="oklch(0.92 0.008 260)"
+                    strokeDasharray="3 3"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="name"
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => formatINR(v)}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid oklch(0.92 0.008 260)",
+                      backgroundColor: "var(--color-card)",
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                    {typeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
-        <div className="divide-y divide-border/60">
-          {sortedExpenses.slice(0, 6).map((e) => {
-            const colors: Record<string, string> = {
-              Groceries: "#2E7D32",
-              Dining: "#E65100",
-              Transport: "#455A64",
-              Shopping: "#6A1B9A",
-              Utilities: "#1565C0",
-              Entertainment: "#C2185B",
-              Health: "#00838F",
-              Other: "#546E7A",
-            };
-            const catColor = colors[e.category] || "#64748b";
-            return (
-              <div key={e.id} className="flex items-center py-3 gap-3">
-                <div
-                  className="h-9 w-9 rounded-lg grid place-items-center text-xs font-semibold"
-                  style={{ backgroundColor: catColor + "22", color: catColor }}
+
+        <div className="card-soft p-5">
+          <div className="text-sm font-semibold mb-3">Spending by Category</div>
+          {barData.length === 0 ? (
+            <div className="h-72 grid place-items-center text-sm text-muted-foreground">
+              No spending records to analyze.
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer>
+                <BarChart
+                  data={barData}
+                  layout="vertical"
+                  margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
                 >
-                  {(e.item_name?.[0] ?? "?").toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{e.item_name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatDateHelper(e.expense_date)} · {e.category}
-                  </div>
-                </div>
-                <div className="text-sm font-semibold num">{formatINR(Number(e.total_paid))}</div>
-              </div>
-            );
-          })}
-          {sortedExpenses.length === 0 && (
-            <div className="py-6 text-center text-sm text-muted-foreground">No expenses yet.</div>
+                  <CartesianGrid
+                    stroke="oklch(0.92 0.008 260)"
+                    strokeDasharray="3 3"
+                    horizontal={false}
+                  />
+                  <XAxis
+                    type="number"
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => formatINR(v)}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid oklch(0.92 0.008 260)",
+                      backgroundColor: "var(--color-card)",
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
+                    {barData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
       </div>

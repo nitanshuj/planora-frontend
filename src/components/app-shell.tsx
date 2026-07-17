@@ -8,14 +8,10 @@ import {
   Wallet,
   Search,
   LogOut,
-  Sparkles,
-  MessageCircle,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
-import { AiDrawer } from "./ai-drawer";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -26,11 +22,34 @@ const NAV = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      fetch("http://localhost:8000/api/v1/auth/session", {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then(data => {
+        if (data.user) {
+          setUser({
+            email: data.user.email,
+            name: data.user.email.split('@')[0],
+          });
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem("auth_token");
+        navigate({ to: "/auth" });
+      });
+    }
+
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -39,10 +58,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [navigate]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      await fetch("http://localhost:8000/api/v1/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => {});
+      localStorage.removeItem("auth_token");
+    }
     navigate({ to: "/auth" });
   };
 
@@ -93,13 +119,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-3 border-t border-border/60 space-y-2">
-          <button
-            onClick={() => setAiOpen(true)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 text-primary transition-colors"
-          >
-            <Sparkles className="h-4 w-4" />
-            Ask AI Agent
-          </button>
+          {user && (
+            <div className="px-3 py-1.5 text-xs">
+              <p className="font-medium text-foreground truncate">{user.name || "User"}</p>
+              <p className="text-muted-foreground truncate">{user.email}</p>
+            </div>
+          )}
           <button
             onClick={signOut}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent transition-colors"
@@ -121,21 +146,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="text-foreground">{currentLabel}</span>
           </div>
           <div className="flex-1" />
-          <Button variant="ghost" size="sm" onClick={() => setPaletteOpen(true)} className="gap-2">
-            <Search className="h-4 w-4" />
-            <span className="hidden sm:inline">Search</span>
-            <kbd className="hidden sm:inline text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted border border-border/70">⌘K</kbd>
-          </Button>
-          <Button size="sm" onClick={() => setAiOpen(true)} className="gap-2">
-            <MessageCircle className="h-4 w-4" /> AI Agent
-          </Button>
         </header>
 
         <main className="flex-1 p-5 md:p-8 max-w-[1400px] w-full mx-auto">{children}</main>
       </div>
 
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onAskAi={() => { setPaletteOpen(false); setAiOpen(true); }} />
-      <AiDrawer open={aiOpen} onOpenChange={setAiOpen} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

@@ -1,7 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,12 +16,19 @@ function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard" });
-    });
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      fetch("http://localhost:8000/api/v1/auth/session", {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(res => {
+        if (res.ok) navigate({ to: "/dashboard" });
+        else localStorage.removeItem("auth_token");
+      }).catch(() => {});
+    }
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,16 +36,50 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+        const res = await fetch("http://localhost:8000/api/v1/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
         });
-        if (error) throw error;
-        toast.success("Account created", { description: "You're signed in." });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Registration failed");
+        }
+        const signupData = await res.json();
+        
+        if (signupData.session?.access_token) {
+          localStorage.setItem("auth_token", signupData.session.access_token);
+          toast.success("Account created", { description: "You're signed in." });
+        } else {
+          // Log in directly
+          const loginRes = await fetch("http://localhost:8000/api/v1/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          if (loginRes.ok) {
+            const loginData = await loginRes.json();
+            localStorage.setItem("auth_token", loginData.access_token);
+            toast.success("Account created", { description: "You're signed in." });
+          } else {
+            toast.info("Account created. Please sign in.");
+            setMode("signin");
+            setLoading(false);
+            return;
+          }
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const res = await fetch("http://localhost:8000/api/v1/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Authentication failed");
+        }
+        const loginData = await res.json();
+        localStorage.setItem("auth_token", loginData.access_token);
       }
       navigate({ to: "/dashboard" });
     } catch (err) {
@@ -51,15 +90,7 @@ function AuthPage() {
   };
 
   const handleGoogle = async () => {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      toast.error("Google sign-in failed");
-      return;
-    }
-    if (result.redirected) return;
-    navigate({ to: "/dashboard" });
+    toast.error("Social login not configured on backend");
   };
 
   return (
@@ -117,6 +148,12 @@ function AuthPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "signup" && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="John Doe" />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

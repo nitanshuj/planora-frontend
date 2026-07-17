@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,23 +21,56 @@ function CategoriesPage() {
   const { data: cats = [] } = useQuery<Category[]>({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("*").order("name");
-      if (error) throw error;
-      return (data ?? []) as Category[];
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch("http://localhost:8000/api/v1/categories", { headers });
+      if (!res.ok) throw new Error("Failed to fetch categories");
+      return (await res.json()) as Category[];
     },
   });
 
   const update = async (id: string, patch: Partial<Category>) => {
-    const { error } = await supabase.from("categories").update(patch).eq("id", id);
-    if (error) toast.error(error.message);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`http://localhost:8000/api/v1/categories/${id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update category");
+    }
     qc.invalidateQueries({ queryKey: ["categories"] });
   };
 
   const remove = async (id: string) => {
     if (!confirm("Delete this category? Transactions will be uncategorized.")) return;
-    const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else toast.success("Deleted");
+    try {
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`http://localhost:8000/api/v1/categories/${id}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+      toast.success("Deleted");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete category");
+    }
     qc.invalidateQueries({ queryKey: ["categories"] });
   };
 
@@ -59,8 +91,8 @@ function CategoriesPage() {
         {cats.map((c) => (
           <div key={c.id} className="card-soft p-5 group">
             <div className="flex items-start gap-3">
-              <div className="h-11 w-11 rounded-xl grid place-items-center text-sm font-bold shrink-0" style={{ backgroundColor: c.color + "22", color: c.color }}>
-                {c.name[0]}
+              <div className="h-11 w-11 rounded-xl grid place-items-center text-sm font-bold shrink-0" style={{ backgroundColor: (c.color || PALETTE[0]) + "22", color: c.color || PALETTE[0] }}>
+                {(c.name || "C")[0]}
               </div>
               <div className="flex-1 min-w-0 space-y-3">
                 <Input defaultValue={c.name} onBlur={(e) => e.target.value !== c.name && update(c.id, { name: e.target.value })} className="font-medium border-transparent hover:border-border p-0 focus:p-2 focus:border-input transition-all h-auto" />
@@ -76,7 +108,7 @@ function CategoriesPage() {
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {PALETTE.map((p) => (
-                    <button key={p} onClick={() => update(c.id, { color: p })} className={`h-5 w-5 rounded-full transition-transform ${c.color.toLowerCase() === p.toLowerCase() ? "ring-2 ring-offset-2 ring-primary scale-110" : "hover:scale-110"}`} style={{ backgroundColor: p }} />
+                    <button key={p} onClick={() => update(c.id, { color: p })} className={`h-5 w-5 rounded-full transition-transform ${(c.color || PALETTE[0]).toLowerCase() === p.toLowerCase() ? "ring-2 ring-offset-2 ring-primary scale-110" : "hover:scale-110"}`} style={{ backgroundColor: p }} />
                   ))}
                 </div>
               </div>
@@ -98,14 +130,32 @@ function NewCategoryDialog({ onClose }: { onClose: () => void }) {
   const [limit, setLimit] = useState("");
   const save = async () => {
     if (!name) return;
-    const { data: userRes } = await supabase.auth.getUser();
-    const { error } = await supabase.from("categories").insert({
-      name, color, monthly_limit: limit ? Number(limit) : null, user_id: userRes.user!.id,
-    });
-    if (error) { toast.error(error.message); return; }
+    try {
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch("http://localhost:8000/api/v1/categories", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name,
+          color,
+          monthly_limit: limit ? Number(limit) : null,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+      toast.success("Category created");
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to create category");
+    }
     qc.invalidateQueries({ queryKey: ["categories"] });
-    toast.success("Category created");
-    onClose();
   };
   return (
     <DialogContent>

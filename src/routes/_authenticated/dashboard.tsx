@@ -1,20 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wallet, TrendingUp, TrendingDown, Sparkles, ArrowUpRight } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, ArrowUpRight } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { Progress } from "@/components/ui/progress";
 
+import { formatINR, formatDateHelper } from "@/lib/utils";
+
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-type Expense = { id: string; date: string; amount: number; vendor: string; category_id: string | null };
-type Category = { id: string; name: string; color: string; monthly_limit: number | null };
+type Expense = { id: string; expense_date: string; total_paid: number; item_name: string; category: string };
+type Category = { id: string; name: string; is_mandatory: boolean };
 
 function Dashboard() {
   const qc = useQueryClient();
@@ -22,44 +23,40 @@ function Dashboard() {
   const { data: expenses = [] } = useQuery<Expense[]>({
     queryKey: ["expenses"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("expenses").select("id,date,amount,vendor,category_id").order("date", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Expense[];
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch("http://localhost:8000/api/v1/expenses", { headers });
+      if (!res.ok) throw new Error("Failed to fetch expenses");
+      return (await res.json()) as Expense[];
     },
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("id,name,color,monthly_limit");
-      if (error) throw error;
-      return (data ?? []) as Category[];
+      const token = localStorage.getItem("auth_token");
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch("http://localhost:8000/api/v1/categories", { headers });
+      if (!res.ok) throw new Error("Failed to fetch categories");
+      return (await res.json()) as Category[];
     },
   });
-
-  useEffect(() => {
-    const ch = supabase
-      .channel("dashboard-expenses")
-      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, () => {
-        qc.invalidateQueries({ queryKey: ["expenses"] });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [qc]);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-  const thisMonth = expenses.filter((e) => new Date(e.date) >= monthStart);
+  const thisMonth = expenses.filter((e) => new Date(e.expense_date) >= monthStart);
   const lastMonth = expenses.filter((e) => {
-    const d = new Date(e.date);
+    const d = new Date(e.expense_date);
     return d >= lastMonthStart && d < monthStart;
   });
-  const totalThis = thisMonth.reduce((s, e) => s + Number(e.amount), 0);
-  const totalLast = lastMonth.reduce((s, e) => s + Number(e.amount), 0);
+  const totalThis = thisMonth.reduce((s, e) => s + Number(e.total_paid), 0);
+  const totalLast = lastMonth.reduce((s, e) => s + Number(e.total_paid), 0);
   const delta = totalLast > 0 ? ((totalThis - totalLast) / totalLast) * 100 : 0;
-  const monthBudget = categories.reduce((s, c) => s + Number(c.monthly_limit ?? 0), 0);
+
+  // Let's hardcode simple limits or default them since real schema categories don't have monthly_limit anymore
+  const monthBudget = 20000; // default INR budget limit
 
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const lineData = useMemo(() => {
@@ -67,7 +64,7 @@ function Dashboard() {
     for (let i = 1; i <= daysInMonth; i++) map.set(i, 0);
     let cum = 0;
     for (let i = 1; i <= daysInMonth; i++) {
-      const day = thisMonth.filter((e) => new Date(e.date).getDate() === i).reduce((s, e) => s + Number(e.amount), 0);
+      const day = thisMonth.filter((e) => new Date(e.expense_date).getDate() === i).reduce((s, e) => s + Number(e.total_paid), 0);
       cum += day;
       map.set(i, cum);
     }
@@ -77,31 +74,29 @@ function Dashboard() {
   const pieData = useMemo(() => {
     const totals = new Map<string, number>();
     for (const e of thisMonth) {
-      if (!e.category_id) continue;
-      totals.set(e.category_id, (totals.get(e.category_id) ?? 0) + Number(e.amount));
+      if (!e.category) continue;
+      totals.set(e.category, (totals.get(e.category) ?? 0) + Number(e.total_paid));
     }
-    return categories
-      .map((c) => ({ name: c.name, value: totals.get(c.id) ?? 0, color: c.color }))
-      .filter((d) => d.value > 0);
-  }, [thisMonth, categories]);
-
-  const [insight, setInsight] = useState<string>("Analyzing your spending…");
-  useEffect(() => {
-    if (expenses.length === 0) {
-      setInsight("Add your first expense or receipt to unlock AI insights tailored to you.");
-      return;
-    }
-    const topCat = pieData.slice().sort((a, b) => b.value - a.value)[0];
-    if (!topCat) return;
-    const pct = totalThis > 0 ? Math.round((topCat.value / totalThis) * 100) : 0;
-    setInsight(
-      `You've spent ${fmt(totalThis)} this month — ${
-        delta >= 0 ? "up" : "down"
-      } ${Math.abs(delta).toFixed(0)}% vs last month. ${topCat.name} leads at ${pct}% of spend.`,
-    );
-  }, [expenses.length, totalThis, delta, pieData]);
+    // Categories are dynamic based on distinct names, let's map them with stable styling colors
+    const colors: Record<string, string> = {
+      Groceries: "#2E7D32", Dining: "#E65100", Transport: "#455A64",
+      Shopping: "#6A1B9A", Utilities: "#1565C0", Entertainment: "#C2185B",
+      Health: "#00838F", Other: "#546E7A"
+    };
+    return Array.from(totals.entries()).map(([name, value]) => ({
+      name,
+      value,
+      color: colors[name] || "#64748b"
+    })).filter((d) => d.value > 0);
+  }, [thisMonth]);
 
   const budgetPct = monthBudget > 0 ? Math.min(100, (totalThis / monthBudget) * 100) : 0;
+
+  const sortedExpenses = useMemo(() => {
+    return [...expenses].sort(
+      (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime()
+    );
+  }, [expenses]);
 
   return (
     <div className="space-y-6">
@@ -110,30 +105,20 @@ function Dashboard() {
         <p className="text-sm text-muted-foreground">Your money at a glance.</p>
       </div>
 
-      <div className="card-soft p-5 flex items-start gap-4 bg-gradient-to-br from-primary/5 to-transparent">
-        <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground grid place-items-center shrink-0">
-          <Sparkles className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <div className="text-xs font-medium text-primary uppercase tracking-wider">AI Insight</div>
-          <p className="mt-1 text-sm">{insight}</p>
-        </div>
-      </div>
-
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard title="Spent this month" value={fmt(totalThis)} icon={Wallet} sub={`${thisMonth.length} transactions`} />
+        <StatCard title="Spent this month" value={formatINR(totalThis)} icon={Wallet} sub={`${thisMonth.length} transactions`} />
         <StatCard
           title="vs last month"
           value={`${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`}
           icon={delta >= 0 ? TrendingUp : TrendingDown}
-          sub={fmt(totalLast) + " last month"}
+          sub={formatINR(totalLast) + " last month"}
           tone={delta >= 0 ? "warn" : "good"}
         />
         <div className="card-soft p-5">
           <div className="text-xs text-muted-foreground uppercase tracking-wider">Monthly budget</div>
           <div className="mt-1 flex items-baseline gap-2">
-            <div className="text-2xl font-semibold num">{fmt(totalThis)}</div>
-            <div className="text-sm text-muted-foreground num">/ {fmt(monthBudget)}</div>
+            <div className="text-2xl font-semibold num">{formatINR(totalThis)}</div>
+            <div className="text-sm text-muted-foreground num">/ {formatINR(monthBudget)}</div>
           </div>
           <Progress value={budgetPct} className="mt-3 h-2" />
           <div className="mt-1 text-xs text-muted-foreground">{budgetPct.toFixed(0)}% used</div>
@@ -153,10 +138,10 @@ function Dashboard() {
               <LineChart data={lineData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke="oklch(0.92 0.008 260)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" stroke="oklch(0.6 0.02 260)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="oklch(0.6 0.02 260)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                <YAxis stroke="oklch(0.6 0.02 260)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
                 <Tooltip
                   contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.008 260)", boxShadow: "0 10px 30px -5px rgba(15,23,42,0.08)" }}
-                  formatter={(v: number) => fmt(v)}
+                  formatter={(v: number) => formatINR(v)}
                 />
                 <Line type="monotone" dataKey="value" stroke="oklch(0.48 0.16 275)" strokeWidth={2.5} dot={false} />
               </LineChart>
@@ -179,13 +164,14 @@ function Dashboard() {
                       <Cell key={i} fill={d.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.008 260)" }} />
+                  <Tooltip formatter={(v: number) => formatINR(v)} contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.008 260)" }} />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
+
       </div>
 
       <div className="card-soft p-5">
@@ -196,22 +182,27 @@ function Dashboard() {
           </a>
         </div>
         <div className="divide-y divide-border/60">
-          {expenses.slice(0, 6).map((e) => {
-            const cat = categories.find((c) => c.id === e.category_id);
+          {sortedExpenses.slice(0, 6).map((e) => {
+            const colors: Record<string, string> = {
+              Groceries: "#2E7D32", Dining: "#E65100", Transport: "#455A64",
+              Shopping: "#6A1B9A", Utilities: "#1565C0", Entertainment: "#C2185B",
+              Health: "#00838F", Other: "#546E7A"
+            };
+            const catColor = colors[e.category] || "#64748b";
             return (
               <div key={e.id} className="flex items-center py-3 gap-3">
-                <div className="h-9 w-9 rounded-lg grid place-items-center text-xs font-semibold" style={{ backgroundColor: (cat?.color ?? "#64748b") + "22", color: cat?.color ?? "#64748b" }}>
-                  {(e.vendor?.[0] ?? "?").toUpperCase()}
+                <div className="h-9 w-9 rounded-lg grid place-items-center text-xs font-semibold" style={{ backgroundColor: catColor + "22", color: catColor }}>
+                  {(e.item_name?.[0] ?? "?").toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{e.vendor}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(e.date).toLocaleDateString()} · {cat?.name ?? "Uncategorized"}</div>
+                  <div className="text-sm font-medium truncate">{e.item_name}</div>
+                  <div className="text-xs text-muted-foreground">{formatDateHelper(e.expense_date)} · {e.category}</div>
                 </div>
-                <div className="text-sm font-semibold num">{fmt(Number(e.amount))}</div>
+                <div className="text-sm font-semibold num">{formatINR(Number(e.total_paid))}</div>
               </div>
             );
           })}
-          {expenses.length === 0 && (
+          {sortedExpenses.length === 0 && (
             <div className="py-6 text-center text-sm text-muted-foreground">No expenses yet.</div>
           )}
         </div>
@@ -221,7 +212,7 @@ function Dashboard() {
 }
 
 function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  return formatINR(n);
 }
 
 function StatCard({

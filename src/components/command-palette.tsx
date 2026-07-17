@@ -8,17 +8,14 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { LayoutDashboard, Receipt, Table2, Tags, Sparkles, LogOut } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { LayoutDashboard, Receipt, Table2, Tags, LogOut } from "lucide-react";
 
 export function CommandPalette({
   open,
   onOpenChange,
-  onAskAi,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onAskAi: () => void;
 }) {
   const navigate = useNavigate();
   const go = (to: string) => {
@@ -46,13 +43,18 @@ export function CommandPalette({
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Actions">
-          <CommandItem onSelect={onAskAi}>
-            <Sparkles className="mr-2 h-4 w-4" /> Ask the AI Agent
-          </CommandItem>
           <CommandItem
             onSelect={async () => {
               onOpenChange(false);
-              await supabase.auth.signOut();
+              const token = localStorage.getItem("auth_token");
+              if (token) {
+                await fetch("http://localhost:8000/api/v1/auth/logout", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${token}` }
+                }).catch(() => {});
+                localStorage.removeItem("auth_token");
+              }
+              navigate({ to: "/auth" });
             }}
           >
             <LogOut className="mr-2 h-4 w-4" /> Sign out

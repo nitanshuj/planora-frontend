@@ -1,14 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  LayoutDashboard,
-  Receipt,
-  Table2,
-  Tags,
-  Wallet,
-  Search,
-  LogOut,
-} from "lucide-react";
+import { LayoutDashboard, Receipt, Table2, Tags, Wallet, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
@@ -30,24 +22,24 @@ export function AppShell({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("auth_token");
     if (token) {
       fetch("http://localhost:8000/api/v1/auth/session", {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .then(res => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then(data => {
-        if (data.user) {
-          setUser({
-            email: data.user.email,
-            name: data.user.email.split('@')[0],
-          });
-        }
-      })
-      .catch(() => {
-        localStorage.removeItem("auth_token");
-        navigate({ to: "/auth" });
-      });
+        .then((res) => {
+          if (!res.ok) throw new Error();
+          return res.json();
+        })
+        .then((data) => {
+          if (data.user) {
+            setUser({
+              email: data.user.email,
+              name: data.user.email.split("@")[0],
+            });
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem("auth_token");
+          navigate({ to: "/auth" });
+        });
     }
 
     const onKey = (e: KeyboardEvent) => {
@@ -65,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (token) {
       await fetch("http://localhost:8000/api/v1/auth/logout", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
       localStorage.removeItem("auth_token");
     }
@@ -94,12 +86,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <Search className="h-4 w-4" />
           <span className="flex-1 text-left">Search or ask…</span>
-          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted border border-border/70">⌘K</kbd>
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted border border-border/70">
+            ⌘K
+          </kbd>
         </button>
 
         <nav className="px-2 flex-1 space-y-0.5">
           {NAV.map((item) => {
-            const active = pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
+            const active =
+              pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
             return (
               <Link
                 key={item.to}

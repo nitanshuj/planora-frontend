@@ -50,7 +50,7 @@ export function CommandPalette({
               if (token) {
                 await fetch("http://localhost:8000/api/v1/auth/logout", {
                   method: "POST",
-                  headers: { Authorization: `Bearer ${token}` }
+                  headers: { Authorization: `Bearer ${token}` },
                 }).catch(() => {});
                 localStorage.removeItem("auth_token");
               }

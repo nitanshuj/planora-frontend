@@ -4,7 +4,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Upload, FileText, Check, X, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -37,9 +43,23 @@ let cachedStatus: "idle" | "uploading" | "extracting" | "review" = "idle";
 let cachedExtracted: Extracted | null = null;
 
 const DEFAULT_CATEGORIES = [
-  "Groceries", "Leisure", "Extra Charge", "Home Items", "Home-Mandatory",
-  "Food_Office", "Cosmetics", "Medical Health", "Home", "Puja",
-  "Travel", "PC Rig", "Clothes", "Mandir", "Electronics", "Phone Recharge", "Activa"
+  "Groceries",
+  "Leisure",
+  "Extra Charge",
+  "Home Items",
+  "Home-Mandatory",
+  "Food_Office",
+  "Cosmetics",
+  "Medical Health",
+  "Home",
+  "Puja",
+  "Travel",
+  "PC Rig",
+  "Clothes",
+  "Mandir",
+  "Electronics",
+  "Phone Recharge",
+  "Activa",
 ];
 
 function ReceiptsPage() {
@@ -47,7 +67,9 @@ function ReceiptsPage() {
   const [dragOver, setDragOver] = useState(false);
   const [preview, setPreviewState] = useState<string | null>(cachedPreview);
   const [storagePath, setStoragePathState] = useState<string | null>(cachedStoragePath);
-  const [status, setStatusState] = useState<"idle" | "uploading" | "extracting" | "review">(cachedStatus);
+  const [status, setStatusState] = useState<"idle" | "uploading" | "extracting" | "review">(
+    cachedStatus,
+  );
   const [extracted, setExtractedState] = useState<Extracted | null>(cachedExtracted);
 
   const setPreview = (val: string | null) => {
@@ -87,7 +109,7 @@ function ReceiptsPage() {
   const allCategories = useMemo(() => {
     const list = [...cats];
     const existingNames = new Set(cats.map((c: any) => c.name.toLowerCase()));
-    DEFAULT_CATEGORIES.forEach(name => {
+    DEFAULT_CATEGORIES.forEach((name) => {
       if (!existingNames.has(name.toLowerCase())) {
         list.push({ id: name, name });
       }
@@ -129,14 +151,27 @@ function ReceiptsPage() {
       }
 
       const result = await res.json();
-      
+
       let expense_date = result.expense_date;
       // Format date in DD-MMM-YYYY format if present
       if (expense_date && !/^\d{2}-[A-Za-z]{3}-\d{4}$/.test(expense_date)) {
         const parsedDate = new Date(expense_date);
         if (!isNaN(parsedDate.getTime())) {
           const day = String(parsedDate.getDate()).padStart(2, "0");
-          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
           const month = months[parsedDate.getMonth()];
           const year = parsedDate.getFullYear();
           expense_date = `${day}-${month}-${year}`;
@@ -175,7 +210,20 @@ function ReceiptsPage() {
           const day = match[1];
           const monthStr = match[2];
           const year = match[3];
-          const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          const months = [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ];
           const monthIdx = months.indexOf(monthStr);
           if (monthIdx !== -1) {
             const month = String(monthIdx + 1).padStart(2, "0");
@@ -196,11 +244,14 @@ function ReceiptsPage() {
         remarks: item.remarks,
       }));
 
-      const res = await fetch(`http://localhost:8000/api/v1/receipts/${extracted.receipt_id}/confirm`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `http://localhost:8000/api/v1/receipts/${extracted.receipt_id}/confirm`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        },
+      );
 
       if (!res.ok) {
         const errText = await res.text();
@@ -234,20 +285,29 @@ function ReceiptsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Receipts</h1>
-        <p className="text-sm text-muted-foreground">Drop a photo or PDF — AI extracts itemized costs automatically.</p>
+        <p className="text-sm text-muted-foreground">
+          Drop a photo or PDF — AI extracts itemized costs automatically.
+        </p>
       </div>
 
       {status === "idle" && (
         <label
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => {
-            e.preventDefault(); setDragOver(false);
-            const f = e.dataTransfer.files[0]; if (f) upload(f);
+            e.preventDefault();
+            setDragOver(false);
+            const f = e.dataTransfer.files[0];
+            if (f) upload(f);
           }}
           className={cn(
             "block card-soft p-12 border-2 border-dashed cursor-pointer transition-colors text-center",
-            dragOver ? "border-primary bg-primary/5" : "border-border/70 hover:border-primary/50 hover:bg-accent/30",
+            dragOver
+              ? "border-primary bg-primary/5"
+              : "border-border/70 hover:border-primary/50 hover:bg-accent/30",
           )}
         >
           <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 text-primary grid place-items-center">
@@ -255,15 +315,28 @@ function ReceiptsPage() {
           </div>
           <div className="mt-4 font-medium">Drop a receipt or click to browse</div>
           <div className="text-sm text-muted-foreground mt-1">PNG, JPG, WEBP — up to ~5 MB</div>
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+          />
         </label>
       )}
 
       {(status === "uploading" || status === "extracting") && (
         <div className="card-soft p-6 grid md:grid-cols-2 gap-6">
-          {preview && <img src={preview} alt="Receipt preview" className="rounded-xl w-full max-h-96 object-contain bg-muted" />}
+          {preview && (
+            <img
+              src={preview}
+              alt="Receipt preview"
+              className="rounded-xl w-full max-h-96 object-contain bg-muted"
+            />
+          )}
           <div className="space-y-3">
-            <div className="text-sm font-semibold">{status === "uploading" ? "Uploading…" : "AI is reading your receipt…"}</div>
+            <div className="text-sm font-semibold">
+              {status === "uploading" ? "Uploading…" : "AI is reading your receipt…"}
+            </div>
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-4 w-1/2" />
             <Skeleton className="h-4 w-2/3" />
@@ -275,14 +348,20 @@ function ReceiptsPage() {
       {status === "review" && extracted && (
         <div className="card-soft p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-4">
-            {preview && <img src={preview} alt="" className="rounded-xl w-full max-h-48 object-contain bg-muted md:col-span-1" />}
+            {preview && (
+              <img
+                src={preview}
+                alt=""
+                className="rounded-xl w-full max-h-48 object-contain bg-muted md:col-span-1"
+              />
+            )}
             <div className="space-y-4 md:col-span-2">
               <div className="text-sm font-semibold text-primary">Verify Receipt Information</div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="grid gap-1.5">
                   <Label>Receipt Date</Label>
-                  <Input 
-                    type="date" 
+                  <Input
+                    type="date"
                     value={(() => {
                       const dateStr = extracted.expense_date;
                       if (!dateStr) return "";
@@ -292,7 +371,20 @@ function ReceiptsPage() {
                         const day = match[1];
                         const monthStr = match[2];
                         const year = match[3];
-                        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        const months = [
+                          "Jan",
+                          "Feb",
+                          "Mar",
+                          "Apr",
+                          "May",
+                          "Jun",
+                          "Jul",
+                          "Aug",
+                          "Sep",
+                          "Oct",
+                          "Nov",
+                          "Dec",
+                        ];
                         const monthIdx = months.indexOf(monthStr);
                         if (monthIdx !== -1) {
                           return `${year}-${String(monthIdx + 1).padStart(2, "0")}-${day}`;
@@ -300,7 +392,7 @@ function ReceiptsPage() {
                       }
                       const parsed = new Date(dateStr);
                       return !isNaN(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : "";
-                    })()} 
+                    })()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (!val) {
@@ -310,28 +402,48 @@ function ReceiptsPage() {
                       const parsedDate = new Date(val);
                       if (!isNaN(parsedDate.getTime())) {
                         const day = String(parsedDate.getDate()).padStart(2, "0");
-                        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                        const months = [
+                          "Jan",
+                          "Feb",
+                          "Mar",
+                          "Apr",
+                          "May",
+                          "Jun",
+                          "Jul",
+                          "Aug",
+                          "Sep",
+                          "Oct",
+                          "Nov",
+                          "Dec",
+                        ];
                         const month = months[parsedDate.getMonth()];
                         const year = parsedDate.getFullYear();
                         setExtracted({ ...extracted, expense_date: `${day}-${month}-${year}` });
                       }
-                    }} 
+                    }}
                   />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Payment Method</Label>
-                  <Input value={extracted.payment_method ?? ""} onChange={(e) => setExtracted({ ...extracted, payment_method: e.target.value })} placeholder="Cash, Card, UPI, etc." />
+                  <Input
+                    value={extracted.payment_method ?? ""}
+                    onChange={(e) => setExtracted({ ...extracted, payment_method: e.target.value })}
+                    placeholder="Cash, Card, UPI, etc."
+                  />
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Service</Label>
-                  <Input 
-                    value={extracted.items[0]?.service ?? ""} 
+                  <Input
+                    value={extracted.items[0]?.service ?? ""}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const newItems = extracted.items.map(item => ({ ...item, service: val || null }));
+                      const newItems = extracted.items.map((item) => ({
+                        ...item,
+                        service: val || null,
+                      }));
                       setExtracted({ ...extracted, items: newItems });
-                    }} 
-                    placeholder="e.g. Amazon, Uber" 
+                    }}
+                    placeholder="e.g. Amazon, Uber"
                   />
                 </div>
               </div>
@@ -352,23 +464,55 @@ function ReceiptsPage() {
               </div>
               <div className="divide-y max-h-96 overflow-y-auto">
                 {extracted.items.map((it, i) => (
-                  <div key={i} className="grid grid-cols-[2fr_1fr_1.5fr_1.5fr_1fr_1fr_1.5fr] gap-2 px-4 py-2 items-center text-sm">
-                    <Input value={it.item_name} onChange={(e) => updateItem(i, "item_name", e.target.value)} className="h-8 text-xs" />
-                    <Input value={it.service ?? ""} onChange={(e) => updateItem(i, "service", e.target.value || null)} placeholder="e.g. Delivery" className="h-8 text-xs" />
+                  <div
+                    key={i}
+                    className="grid grid-cols-[2fr_1fr_1.5fr_1.5fr_1fr_1fr_1.5fr] gap-2 px-4 py-2 items-center text-sm"
+                  >
+                    <Input
+                      value={it.item_name}
+                      onChange={(e) => updateItem(i, "item_name", e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={it.service ?? ""}
+                      onChange={(e) => updateItem(i, "service", e.target.value || null)}
+                      placeholder="e.g. Delivery"
+                      className="h-8 text-xs"
+                    />
                     <Select value={it.category} onValueChange={(v) => updateItem(i, "category", v)}>
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {allCategories.map((c: any) => (
-                          <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                          <SelectItem key={c.id} value={c.name}>
+                            {c.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Input value={it.sub_category ?? ""} onChange={(e) => updateItem(i, "sub_category", e.target.value || null)} className="h-8 text-xs" />
-                    <Input type="number" step="0.01" value={it.total_paid} onChange={(e) => updateItem(i, "total_paid", Number(e.target.value))} className="h-8 text-xs text-right" />
-                    <Input value={it.brand ?? ""} onChange={(e) => updateItem(i, "brand", e.target.value || null)} className="h-8 text-xs" />
-                    <Input value={it.remarks ?? ""} onChange={(e) => updateItem(i, "remarks", e.target.value || null)} className="h-8 text-xs" />
+                    <Input
+                      value={it.sub_category ?? ""}
+                      onChange={(e) => updateItem(i, "sub_category", e.target.value || null)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={it.total_paid}
+                      onChange={(e) => updateItem(i, "total_paid", Number(e.target.value))}
+                      className="h-8 text-xs text-right"
+                    />
+                    <Input
+                      value={it.brand ?? ""}
+                      onChange={(e) => updateItem(i, "brand", e.target.value || null)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={it.remarks ?? ""}
+                      onChange={(e) => updateItem(i, "remarks", e.target.value || null)}
+                      className="h-8 text-xs"
+                    />
                   </div>
                 ))}
               </div>
@@ -376,8 +520,12 @@ function ReceiptsPage() {
           </div>
 
           <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={reset} className="gap-2"><X className="h-4 w-4" /> Discard</Button>
-            <Button onClick={confirm} className="gap-2"><Check className="h-4 w-4" /> Save all expenses</Button>
+            <Button variant="outline" onClick={reset} className="gap-2">
+              <X className="h-4 w-4" /> Discard
+            </Button>
+            <Button onClick={confirm} className="gap-2">
+              <Check className="h-4 w-4" /> Save all expenses
+            </Button>
           </div>
         </div>
       )}
@@ -392,11 +540,23 @@ function ReceiptsPage() {
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{r.raw_llm_response?.payment_method ?? "Receipt"}</div>
-                  <div className="text-xs text-muted-foreground">{formatDateHelper(r.uploaded_at)}</div>
+                  <div className="text-sm font-medium truncate">
+                    {r.raw_llm_response?.payment_method ?? "Receipt"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDateHelper(r.uploaded_at)}
+                  </div>
                 </div>
                 <div className="text-sm font-semibold num">
-                  {r.raw_llm_response?.items ? formatINR(r.raw_llm_response.items.reduce((acc: number, item: any) => acc + Number(item.total_paid || item.price || 0), 0)) : "—"}
+                  {r.raw_llm_response?.items
+                    ? formatINR(
+                        r.raw_llm_response.items.reduce(
+                          (acc: number, item: any) =>
+                            acc + Number(item.total_paid || item.price || 0),
+                          0,
+                        ),
+                      )
+                    : "—"}
                 </div>
               </div>
             ))}

@@ -4,7 +4,7 @@ Planora is a modern, intuitive, and feature-rich personal finance dashboard desi
 
 ## 🚀 Key Features
 
-- **Interactive Financial Dashboard**: 
+- **Interactive Financial Dashboard**:
   - Real-time visualization of monthly expenses using Recharts (Pie Chart category breakdown & daily cumulative Line Chart).
   - Monthly budget limit progress bar and comparisons to previous month's spending.
   - Quick view of recent transactions.
@@ -21,5 +21,3 @@ Planora is a modern, intuitive, and feature-rich personal finance dashboard desi
 - **Styling**: [TailwindCSS v4](https://tailwindcss.com/) & [Radix UI](https://www.radix-ui.com/) components
 - **Charting**: [Recharts](https://recharts.org/)
 - **Icons**: [Lucide React](https://lucide.dev/)
-
-

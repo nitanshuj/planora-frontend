@@ -4,9 +4,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Plus, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -16,13 +27,13 @@ export const Route = createFileRoute("/_authenticated/transactions")({
   component: TransactionsPage,
 });
 
-type Expense = { 
-  id: string; 
-  expense_date: string; 
-  total_paid: number; 
-  item_name: string; 
-  category: string; 
-  remarks: string | null; 
+type Expense = {
+  id: string;
+  expense_date: string;
+  total_paid: number;
+  item_name: string;
+  category: string;
+  remarks: string | null;
   service: string | null;
   brand: string | null;
   payment_method: string | null;
@@ -30,9 +41,23 @@ type Expense = {
 type Category = { id: string; name: string };
 
 const DEFAULT_CATEGORIES = [
-  "Groceries", "Leisure", "Extra Charge", "Home Items", "Home-Mandatory",
-  "Food_Office", "Cosmetics", "Medical Health", "Home", "Puja",
-  "Travel", "PC Rig", "Clothes", "Mandir", "Electronics", "Phone Recharge", "Activa"
+  "Groceries",
+  "Leisure",
+  "Extra Charge",
+  "Home Items",
+  "Home-Mandatory",
+  "Food_Office",
+  "Cosmetics",
+  "Medical Health",
+  "Home",
+  "Puja",
+  "Travel",
+  "PC Rig",
+  "Clothes",
+  "Mandir",
+  "Electronics",
+  "Phone Recharge",
+  "Activa",
 ];
 
 function TransactionsPage() {
@@ -64,8 +89,8 @@ function TransactionsPage() {
 
   const allCategories = useMemo(() => {
     const list = [...cats];
-    const existingNames = new Set(cats.map(c => c.name.toLowerCase()));
-    DEFAULT_CATEGORIES.forEach(name => {
+    const existingNames = new Set(cats.map((c) => c.name.toLowerCase()));
+    DEFAULT_CATEGORIES.forEach((name) => {
       if (!existingNames.has(name.toLowerCase())) {
         list.push({ id: name, name });
       }
@@ -76,7 +101,10 @@ function TransactionsPage() {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const okCat = catFilter === "all" || r.category === catFilter;
-      const okQ = !filter || r.item_name.toLowerCase().includes(filter.toLowerCase()) || r.remarks?.toLowerCase().includes(filter.toLowerCase());
+      const okQ =
+        !filter ||
+        r.item_name.toLowerCase().includes(filter.toLowerCase()) ||
+        r.remarks?.toLowerCase().includes(filter.toLowerCase());
       return okCat && okQ;
     });
   }, [rows, filter, catFilter]);
@@ -133,47 +161,85 @@ function TransactionsPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} entries · {formatINR(total)}</p>
+          <p className="text-sm text-muted-foreground">
+            {filtered.length} entries · {formatINR(total)}
+          </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" /> Add transaction</Button>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" /> Add transaction
+            </Button>
           </DialogTrigger>
           <NewTxDialog cats={allCategories} onClose={() => setOpen(false)} />
         </Dialog>
       </div>
- 
+
       <div className="card-soft p-4 flex gap-3 items-center flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search item or remarks…" value={filter} onChange={(e) => setFilter(e.target.value)} className="pl-9" />
+          <Input
+            placeholder="Search item or remarks…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="pl-9"
+          />
         </div>
         <Select value={catFilter} onValueChange={setCatFilter}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {allCategories.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+            {allCategories.map((c) => (
+              <SelectItem key={c.name} value={c.name}>
+                {c.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
- 
+
       <div className="card-soft overflow-hidden">
         <div className="grid grid-cols-[110px_1fr_180px_120px_40px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
-          <div>Date</div><div>Item Name</div><div>Category</div><div className="text-right">Total Paid</div><div />
+          <div>Date</div>
+          <div>Item Name</div>
+          <div>Category</div>
+          <div className="text-right">Total Paid</div>
+          <div />
         </div>
         <div className="divide-y divide-border/60">
           {filtered.map((r) => {
             const colors: Record<string, string> = {
-              Groceries: "#2E7D32", Dining: "#E65100", Transport: "#455A64",
-              Shopping: "#6A1B9A", Utilities: "#1565C0", Entertainment: "#C2185B",
-              Health: "#00838F", Other: "#546E7A"
+              Groceries: "#2E7D32",
+              Dining: "#E65100",
+              Transport: "#455A64",
+              Shopping: "#6A1B9A",
+              Utilities: "#1565C0",
+              Entertainment: "#C2185B",
+              Health: "#00838F",
+              Other: "#546E7A",
             };
             const catColor = colors[r.category] || "#64748b";
             return (
-              <div key={r.id} className="grid grid-cols-[110px_1fr_180px_120px_40px] gap-3 px-5 py-2.5 items-center hover:bg-accent/40 transition-colors group">
-                <span className="text-xs font-medium text-muted-foreground">{formatDateHelper(r.expense_date)}</span>
-                <Input defaultValue={r.item_name} onBlur={(e) => e.target.value !== r.item_name && update(r.id, { item_name: e.target.value })} className="h-8 text-sm border-transparent hover:border-border" />
-                <Select value={r.category ?? "Other"} onValueChange={(v) => update(r.id, { category: v })}>
+              <div
+                key={r.id}
+                className="grid grid-cols-[110px_1fr_180px_120px_40px] gap-3 px-5 py-2.5 items-center hover:bg-accent/40 transition-colors group"
+              >
+                <span className="text-xs font-medium text-muted-foreground">
+                  {formatDateHelper(r.expense_date)}
+                </span>
+                <Input
+                  defaultValue={r.item_name}
+                  onBlur={(e) =>
+                    e.target.value !== r.item_name && update(r.id, { item_name: e.target.value })
+                  }
+                  className="h-8 text-sm border-transparent hover:border-border"
+                />
+                <Select
+                  value={r.category ?? "Other"}
+                  onValueChange={(v) => update(r.id, { category: v })}
+                >
                   <SelectTrigger className="h-8 text-xs border-transparent hover:border-border">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="h-2 w-2 rounded-full" style={{ background: catColor }} />
@@ -181,18 +247,40 @@ function TransactionsPage() {
                     </div>
                   </SelectTrigger>
                   <SelectContent>
-                    {allCategories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                    {allCategories.map((c) => (
+                      <SelectItem key={c.id} value={c.name}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Input type="number" step="0.01" defaultValue={Number(r.total_paid)} onBlur={(e) => Number(e.target.value) !== Number(r.total_paid) && update(r.id, { total_paid: Number(e.target.value) })} className={cn("h-8 text-sm text-right num border-transparent hover:border-border")} />
-                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={() => remove(r.id)}>
+                <Input
+                  type="number"
+                  step="0.01"
+                  defaultValue={Number(r.total_paid)}
+                  onBlur={(e) =>
+                    Number(e.target.value) !== Number(r.total_paid) &&
+                    update(r.id, { total_paid: Number(e.target.value) })
+                  }
+                  className={cn(
+                    "h-8 text-sm text-right num border-transparent hover:border-border",
+                  )}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                  onClick={() => remove(r.id)}
+                >
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
             );
           })}
           {filtered.length === 0 && (
-            <div className="py-10 text-center text-sm text-muted-foreground">No matching transactions.</div>
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No matching transactions.
+            </div>
           )}
         </div>
       </div>
@@ -216,7 +304,10 @@ function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void 
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!item_name || !total_paid) { toast.error("Item name and amount required"); return; }
+    if (!item_name || !total_paid) {
+      toast.error("Item name and amount required");
+      return;
+    }
     setSaving(true);
     try {
       const token = localStorage.getItem("auth_token");
@@ -262,56 +353,134 @@ function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void 
 
   return (
     <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-      <DialogHeader><DialogTitle>Add transaction</DialogTitle></DialogHeader>
+      <DialogHeader>
+        <DialogTitle>Add transaction</DialogTitle>
+      </DialogHeader>
       <div className="grid gap-3 py-2">
         <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5"><Label>Item Name</Label><Input value={item_name} onChange={(e) => setItemName(e.target.value)} placeholder="Whole Foods Milk" /></div>
-          <div className="grid gap-1.5"><Label>Service / Merchant</Label><Input value={service} onChange={(e) => setService(e.target.value)} placeholder="e.g. Amazon, Blinkit" /></div>
+          <div className="grid gap-1.5">
+            <Label>Item Name</Label>
+            <Input
+              value={item_name}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Whole Foods Milk"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Service / Merchant</Label>
+            <Input
+              value={service}
+              onChange={(e) => setService(e.target.value)}
+              placeholder="e.g. Amazon, Blinkit"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5"><Label>Amount (Total Paid)</Label><Input type="number" step="0.01" value={total_paid} onChange={(e) => setTotalPaid(e.target.value)} placeholder="0.00" /></div>
-          <div className="grid gap-1.5"><Label>Date</Label><Input type="date" value={expense_date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div className="grid gap-1.5">
+            <Label>Amount (Total Paid)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              value={total_paid}
+              onChange={(e) => setTotalPaid(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Date</Label>
+            <Input type="date" value={expense_date} onChange={(e) => setDate(e.target.value)} />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="grid gap-1.5">
             <Label>Category</Label>
             <Select value={category} onValueChange={setCat}>
-              <SelectTrigger><SelectValue placeholder="Choose…" /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose…" />
+              </SelectTrigger>
               <SelectContent>
-                {cats.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                {cats.map((c) => (
+                  <SelectItem key={c.id} value={c.name}>
+                    {c.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1.5"><Label>Sub Category</Label><Input value={sub_category} onChange={(e) => setSubCategory(e.target.value)} placeholder="e.g. Snacks, Dairy" /></div>
+          <div className="grid gap-1.5">
+            <Label>Sub Category</Label>
+            <Input
+              value={sub_category}
+              onChange={(e) => setSubCategory(e.target.value)}
+              placeholder="e.g. Snacks, Dairy"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5"><Label>Brand</Label><Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Organic India" /></div>
-          <div className="grid gap-1.5"><Label>Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. New York, Online" /></div>
+          <div className="grid gap-1.5">
+            <Label>Brand</Label>
+            <Input
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              placeholder="e.g. Organic India"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Location</Label>
+            <Input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. New York, Online"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5"><Label>Quantity</Label><Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="1" /></div>
+          <div className="grid gap-1.5">
+            <Label>Quantity</Label>
+            <Input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              placeholder="1"
+            />
+          </div>
           <div className="grid gap-1.5">
             <Label>Payment Method</Label>
             <Select value={payment_method} onValueChange={setPaymentMethod}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {["Cash", "Card", "UPI", "Net Banking", "Wallet", "Unknown"].map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        <div className="grid gap-1.5"><Label>Remarks</Label><Input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any extra notes..." /></div>
+        <div className="grid gap-1.5">
+          <Label>Remarks</Label>
+          <Input
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            placeholder="Any extra notes..."
+          />
+        </div>
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save"}
+        </Button>
       </DialogFooter>
     </DialogContent>
   );

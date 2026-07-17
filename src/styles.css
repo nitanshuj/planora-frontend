@@ -95,7 +95,7 @@
   --chart-2: oklch(0.52 0.14 145);
   --chart-3: oklch(0.62 0.15 65);
   --chart-4: oklch(0.55 0.16 320);
-  --chart-5: oklch(0.55 0.10 220);
+  --chart-5: oklch(0.55 0.1 220);
 
   --sidebar: oklch(0.99 0.003 247);
   --sidebar-foreground: oklch(0.32 0.03 260);
@@ -111,7 +111,9 @@
   * {
     border-color: var(--color-border);
   }
-  html, body, #root {
+  html,
+  body,
+  #root {
     height: 100%;
   }
   body {

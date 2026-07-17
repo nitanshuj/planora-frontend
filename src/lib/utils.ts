@@ -14,7 +14,20 @@ export function formatDateHelper(dateStr: string | null | undefined): string {
   const dateObj = new Date(dateStr);
   if (isNaN(dateObj.getTime())) return dateStr; // fallback to original if parsing fails
   const day = String(dateObj.getDate()).padStart(2, "0");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   const month = months[dateObj.getMonth()];
   const year = dateObj.getFullYear();
   return `${day}-${month}-${year}`;

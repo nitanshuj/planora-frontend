@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Wallet, TrendingUp, TrendingDown, ArrowUpRight } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, Calendar } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -16,9 +16,17 @@ import {
   Legend,
   BarChart,
   Bar,
+  ScatterChart,
+  Scatter,
 } from "recharts";
 import { Progress } from "@/components/ui/progress";
-
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatINR } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -31,11 +39,20 @@ type Expense = {
   total_paid: number;
   item_name: string;
   category: string;
+  sub_category?: string | null;
+  remarks?: string | null;
 };
 type Category = { id: string; name: string; is_mandatory: boolean };
 
 function Dashboard() {
   const qc = useQueryClient();
+
+  // Selected month state in YYYY-MM format
+  const currentMonthKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
 
   const { data: expenses = [] } = useQuery<Expense[]>({
     queryKey: ["expenses"],
@@ -59,6 +76,54 @@ function Dashboard() {
     },
   });
 
+  // Generate list of available months from expenses data (plus current month)
+  const monthOptions = useMemo(() => {
+    const monthsSet = new Set<string>();
+    monthsSet.add(currentMonthKey);
+    for (const e of expenses) {
+      if (e.expense_date) {
+        const key = e.expense_date.slice(0, 7); // YYYY-MM
+        if (/^\d{4}-\d{2}$/.test(key)) {
+          monthsSet.add(key);
+        }
+      }
+    }
+    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+  }, [expenses, currentMonthKey]);
+
+  // Selected month start & end dates
+  const [selYear, selMon] = selectedMonth.split("-").map(Number);
+  const selectedMonthStart = new Date(selYear, selMon - 1, 1);
+  const daysInSelectedMonth = new Date(selYear, selMon, 0).getDate();
+
+  // Filter expenses for selected month
+  const selectedMonthExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      if (!e.expense_date) return false;
+      return e.expense_date.startsWith(selectedMonth);
+    });
+  }, [expenses, selectedMonth]);
+
+  // Daily Dot Plot Data for selected month (1 entry per day of month)
+  const dotPlotData = useMemo(() => {
+    const map = new Map<number, { day: number; spend: number; count: number }>();
+    for (let i = 1; i <= daysInSelectedMonth; i++) {
+      map.set(i, { day: i, spend: 0, count: 0 });
+    }
+
+    for (const e of selectedMonthExpenses) {
+      if (e.category?.toLowerCase() === "home-mandatory") continue;
+      const d = new Date(e.expense_date).getDate();
+      if (map.has(d)) {
+        const item = map.get(d)!;
+        item.spend += Number(e.total_paid);
+        item.count += 1;
+      }
+    }
+
+    return Array.from(map.values());
+  }, [selectedMonthExpenses, daysInSelectedMonth]);
+
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -74,8 +139,7 @@ function Dashboard() {
   const totalLast = lastMonth.reduce((s, e) => s + Number(e.total_paid), 0);
   const delta = totalLast > 0 ? ((totalThis - totalLast) / totalLast) * 100 : 0;
 
-  // Let's hardcode simple limits or default them since real schema categories don't have monthly_limit anymore
-  const monthBudget = 20000; // default INR budget limit
+  const monthBudget = 20000;
 
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const lineData = useMemo(() => {
@@ -98,7 +162,6 @@ function Dashboard() {
       if (!e.category) continue;
       totals.set(e.category, (totals.get(e.category) ?? 0) + Number(e.total_paid));
     }
-    // Categories are dynamic based on distinct names, let's map them with stable styling colors
     const colors: Record<string, string> = {
       Groceries: "#2E7D32",
       Dining: "#E65100",
@@ -118,39 +181,179 @@ function Dashboard() {
       .filter((d) => d.value > 0);
   }, [thisMonth]);
 
-  const typeData = useMemo(() => {
-    let mandatoryTotal = 0;
-    let discretionaryTotal = 0;
+  const subCategoryData = useMemo(() => {
+    const targetSubCategories = [
+      "Snacks",
+      "Eating Out",
+      "Milk",
+      "Bread",
+      "Vegetables",
+      "Fruits",
+      "Eggs",
+    ];
 
-    const mandatorySet = new Set(categories.filter((c) => c.is_mandatory).map((c) => c.name));
+    const totals: Record<string, number> = {};
+    for (const sub of targetSubCategories) {
+      totals[sub] = 0;
+    }
 
     for (const e of thisMonth) {
-      if (!e.category) continue;
-      const isMandatory = mandatorySet.has(e.category);
-      if (isMandatory) {
-        mandatoryTotal += Number(e.total_paid);
-      } else {
-        discretionaryTotal += Number(e.total_paid);
+      const itemStr = (e.item_name || "").toLowerCase();
+      const catStr = (e.category || "").toLowerCase();
+      const subCatStr = (e.sub_category || "").toLowerCase();
+      const remarksStr = (e.remarks || "").toLowerCase();
+
+      for (const target of targetSubCategories) {
+        const targetLower = target.toLowerCase();
+        if (
+          subCatStr.includes(targetLower) ||
+          itemStr.includes(targetLower) ||
+          catStr.includes(targetLower) ||
+          remarksStr.includes(targetLower) ||
+          (targetLower === "eating out" && (catStr.includes("dining") || itemStr.includes("restaurant") || itemStr.includes("swiggy") || itemStr.includes("zomato"))) ||
+          (targetLower === "vegetables" && (itemStr.includes("veggie") || itemStr.includes("sabzi") || itemStr.includes("tomato") || itemStr.includes("potato") || itemStr.includes("onion"))) ||
+          (targetLower === "fruits" && (itemStr.includes("apple") || itemStr.includes("banana") || itemStr.includes("mango") || itemStr.includes("orange"))) ||
+          (targetLower === "snacks" && (itemStr.includes("snack") || itemStr.includes("chip") || itemStr.includes("biscuit") || itemStr.includes("namkeen")))
+        ) {
+          totals[target] += Number(e.total_paid);
+          break;
+        }
       }
     }
 
-    return [
-      { name: "Mandatory (Needs)", value: mandatoryTotal, fill: "oklch(0.52 0.14 145)" },
-      { name: "Discretionary (Wants)", value: discretionaryTotal, fill: "oklch(0.48 0.16 275)" },
-    ];
-  }, [thisMonth, categories]);
+    const colors: Record<string, string> = {
+      Snacks: "#E65100",
+      "Eating Out": "#C2185B",
+      Milk: "#1565C0",
+      Bread: "#8D6E63",
+      Vegetables: "#2E7D32",
+      Fruits: "#F57C00",
+      Eggs: "#FBC02D",
+    };
 
-  const barData = useMemo(() => {
-    return [...pieData].sort((a, b) => b.value - a.value);
-  }, [pieData]);
+    return targetSubCategories.map((name) => ({
+      name,
+      value: totals[name],
+      fill: colors[name] || "#64748b",
+    }));
+  }, [thisMonth]);
 
   const budgetPct = monthBudget > 0 ? Math.min(100, (totalThis / monthBudget) * 100) : 0;
 
+  const { data: sessionData } = useQuery({
+    queryKey: ["session"],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth_token");
+      if (!token) return null;
+      const res = await fetch("http://localhost:8000/api/v1/auth/session", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const userName = sessionData?.user?.full_name || sessionData?.user?.email?.split("@")[0];
+
+  const formatMonthLabel = (mKey: string) => {
+    const [y, m] = mKey.split("-").map(Number);
+    const date = new Date(y, m - 1, 1);
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Your money at a glance.</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {userName ? `Welcome back, ${userName}` : "Dashboard"}
+          </h1>
+          <p className="text-sm text-muted-foreground">Your money at a glance.</p>
+        </div>
+      </div>
+
+      {/* Top Bar Chart for Daily Spend */}
+      <div className="card-soft p-5">
+        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div>
+            <div className="text-sm font-semibold flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" /> Daily Spend Breakdown
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Day-by-day expenditure for {formatMonthLabel(selectedMonth)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground font-medium">Select Month:</span>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-[180px] h-9 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {formatMonthLabel(m)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={dotPlotData} margin={{ top: 15, right: 10, bottom: 5, left: 10 }}>
+              <CartesianGrid
+                stroke="oklch(0.92 0.008 260)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="day"
+                stroke="oklch(0.6 0.02 260)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                stroke="oklch(0.6 0.02 260)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => `₹${v}`}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="rounded-xl border border-border/80 bg-card p-3 shadow-lg text-xs space-y-1">
+                        <div className="font-semibold text-foreground">
+                          Day {data.day} ({formatMonthLabel(selectedMonth)})
+                        </div>
+                        <div className="text-primary font-medium">
+                          Total Spend: {formatINR(data.spend)}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {data.count} transaction{data.count === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Bar dataKey="spend" radius={[4, 4, 0, 0]} maxBarSize={30}>
+                {dotPlotData.map((entry, index) => (
+                  <Cell
+                    key={`daily-bar-${index}`}
+                    fill={entry.spend > 0 ? "oklch(0.48 0.16 275)" : "oklch(0.92 0.008 260)"}
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -264,107 +467,48 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="card-soft p-5">
-          <div className="text-sm font-semibold mb-3">Mandatory vs. Discretionary Spending</div>
-          {typeData.every((d) => d.value === 0) ? (
-            <div className="h-72 grid place-items-center text-sm text-muted-foreground">
-              No spending records to analyze.
-            </div>
-          ) : (
-            <div className="h-72">
-              <ResponsiveContainer>
-                <BarChart data={typeData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
-                  <CartesianGrid
-                    stroke="oklch(0.92 0.008 260)"
-                    strokeDasharray="3 3"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    stroke="oklch(0.6 0.02 260)"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="oklch(0.6 0.02 260)"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => `₹${v}`}
-                  />
-                  <Tooltip
-                    formatter={(v: number) => formatINR(v)}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: "1px solid oklch(0.92 0.008 260)",
-                      backgroundColor: "var(--color-card)",
-                    }}
-                  />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                    {typeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      <div className="card-soft p-5">
+        <div className="text-sm font-semibold mb-1">Sub-category Spending</div>
+        <div className="text-xs text-muted-foreground mb-4">
+          Spending breakdown across key daily sub-categories
         </div>
-
-        <div className="card-soft p-5">
-          <div className="text-sm font-semibold mb-3">Spending by Category</div>
-          {barData.length === 0 ? (
-            <div className="h-72 grid place-items-center text-sm text-muted-foreground">
-              No spending records to analyze.
-            </div>
-          ) : (
-            <div className="h-72">
-              <ResponsiveContainer>
-                <BarChart
-                  data={barData}
-                  layout="vertical"
-                  margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
-                >
-                  <CartesianGrid
-                    stroke="oklch(0.92 0.008 260)"
-                    strokeDasharray="3 3"
-                    horizontal={false}
-                  />
-                  <XAxis
-                    type="number"
-                    stroke="oklch(0.6 0.02 260)"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => `₹${v}`}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    stroke="oklch(0.6 0.02 260)"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(v: number) => formatINR(v)}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: "1px solid oklch(0.92 0.008 260)",
-                      backgroundColor: "var(--color-card)",
-                    }}
-                  />
-                  <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={20}>
-                    {barData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={subCategoryData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+              <CartesianGrid
+                stroke="oklch(0.92 0.008 260)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="name"
+                stroke="oklch(0.6 0.02 260)"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                stroke="oklch(0.6 0.02 260)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => `₹${v}`}
+              />
+              <Tooltip
+                formatter={(v: number) => formatINR(v)}
+                contentStyle={{
+                  borderRadius: 12,
+                  border: "1px solid oklch(0.92 0.008 260)",
+                  backgroundColor: "var(--color-card)",
+                }}
+              />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={50}>
+                {subCategoryData.map((entry, index) => (
+                  <Cell key={`sub-cell-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

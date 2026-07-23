@@ -33,6 +33,7 @@ type Expense = {
   total_paid: number;
   item_name: string;
   category: string;
+  sub_category?: string | null;
   remarks: string | null;
   service: string | null;
   brand: string | null;
@@ -98,16 +99,32 @@ function TransactionsPage() {
     return list;
   }, [cats]);
 
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
+    const list = rows.filter((r) => {
       const okCat = catFilter === "all" || r.category === catFilter;
       const okQ =
         !filter ||
         r.item_name.toLowerCase().includes(filter.toLowerCase()) ||
+        r.sub_category?.toLowerCase().includes(filter.toLowerCase()) ||
         r.remarks?.toLowerCase().includes(filter.toLowerCase());
       return okCat && okQ;
     });
+
+    // Sort descending by date (latest first)
+    return list.sort(
+      (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime(),
+    );
   }, [rows, filter, catFilter]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
 
   const total = filtered.reduce((s, r) => s + Number(r.total_paid), 0);
 
@@ -179,13 +196,22 @@ function TransactionsPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search item or remarks…"
+            placeholder="Search item, sub-category, or remarks…"
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setPage(1);
+            }}
             className="pl-9"
           />
         </div>
-        <Select value={catFilter} onValueChange={setCatFilter}>
+        <Select
+          value={catFilter}
+          onValueChange={(v) => {
+            setCatFilter(v);
+            setPage(1);
+          }}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
@@ -201,15 +227,16 @@ function TransactionsPage() {
       </div>
 
       <div className="card-soft overflow-hidden">
-        <div className="grid grid-cols-[110px_1fr_180px_120px_40px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
+        <div className="grid grid-cols-[100px_1fr_150px_130px_110px_40px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
           <div>Date</div>
           <div>Item Name</div>
           <div>Category</div>
+          <div>Sub-Category</div>
           <div className="text-right">Total Paid</div>
           <div />
         </div>
         <div className="divide-y divide-border/60">
-          {filtered.map((r) => {
+          {paginatedRows.map((r) => {
             const colors: Record<string, string> = {
               Groceries: "#2E7D32",
               Dining: "#E65100",
@@ -224,7 +251,7 @@ function TransactionsPage() {
             return (
               <div
                 key={r.id}
-                className="grid grid-cols-[110px_1fr_180px_120px_40px] gap-3 px-5 py-2.5 items-center hover:bg-accent/40 transition-colors group"
+                className="grid grid-cols-[100px_1fr_150px_130px_110px_40px] gap-3 px-5 py-2.5 items-center hover:bg-accent/40 transition-colors group"
               >
                 <span className="text-xs font-medium text-muted-foreground">
                   {formatDateHelper(r.expense_date)}
@@ -255,6 +282,15 @@ function TransactionsPage() {
                   </SelectContent>
                 </Select>
                 <Input
+                  defaultValue={r.sub_category ?? ""}
+                  placeholder="—"
+                  onBlur={(e) =>
+                    e.target.value !== (r.sub_category ?? "") &&
+                    update(r.id, { sub_category: e.target.value || null })
+                  }
+                  className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
+                />
+                <Input
                   type="number"
                   step="0.01"
                   defaultValue={Number(r.total_paid)}
@@ -283,6 +319,37 @@ function TransactionsPage() {
             </div>
           )}
         </div>
+        {filtered.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-border/60 text-xs text-muted-foreground bg-muted/10">
+            <div>
+              Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)} to{" "}
+              {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} entries
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

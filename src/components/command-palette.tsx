@@ -8,7 +8,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { LayoutDashboard, Receipt, Table2, Tags, LogOut } from "lucide-react";
+import { LayoutDashboard, Receipt, Table2, LogOut } from "lucide-react";
 
 export function CommandPalette({
   open,
@@ -36,9 +36,6 @@ export function CommandPalette({
           </CommandItem>
           <CommandItem onSelect={() => go("/receipts")}>
             <Receipt className="mr-2 h-4 w-4" /> Receipts
-          </CommandItem>
-          <CommandItem onSelect={() => go("/categories")}>
-            <Tags className="mr-2 h-4 w-4" /> Categories
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />

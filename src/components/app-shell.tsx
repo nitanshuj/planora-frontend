@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Receipt, Table2, Tags, Wallet, Search, LogOut } from "lucide-react";
+import { LayoutDashboard, Receipt, Table2, Wallet, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
@@ -9,7 +9,6 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: Table2 },
   { to: "/receipts", label: "Receipts", icon: Receipt },
-  { to: "/categories", label: "Categories", icon: Tags },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -32,7 +31,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           if (data.user) {
             setUser({
               email: data.user.email,
-              name: data.user.email.split("@")[0],
+              name: data.user.full_name || data.user.email.split("@")[0],
             });
           }
         })

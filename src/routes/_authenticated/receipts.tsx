@@ -529,46 +529,6 @@ function ReceiptsPage() {
           </div>
         </div>
       )}
-
-      {recent.length > 0 && (
-        <div className="card-soft p-5">
-          <div className="text-sm font-semibold mb-3">Recent receipts</div>
-          <div className="divide-y divide-border/60">
-            {recent.map((r: any) => (
-              <div key={r.id} className="flex items-center py-2.5 gap-3">
-                <div className="h-9 w-9 rounded-lg bg-muted grid place-items-center">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {r.raw_llm_response?.payment_method ?? "Receipt"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatDateHelper(r.uploaded_at)}
-                  </div>
-                </div>
-                <div className="text-sm font-semibold num">
-                  {r.raw_llm_response?.items
-                    ? formatINR(
-                        r.raw_llm_response.items.reduce(
-                          (acc: number, item: any) =>
-                            acc + Number(item.total_paid || item.price || 0),
-                          0,
-                        ),
-                      )
-                    : "—"}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {recent.length === 0 && status === "idle" && (
-        <div className="text-sm text-muted-foreground flex items-center gap-2 justify-center py-8">
-          <ImageIcon className="h-4 w-4" /> No receipts yet.
-        </div>
-      )}
     </div>
   );
 }

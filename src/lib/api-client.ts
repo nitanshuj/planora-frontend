@@ -1,5 +1,11 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+const rawUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_BACKEND_API_URL ||
+  "http://localhost:8000";
+
+const cleanUrl = rawUrl.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
+const API_BASE_URL = `${cleanUrl}/api/v1`;
+
 
 export async function apiFetch<T = any>(
   path: string,

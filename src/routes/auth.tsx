@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Wallet } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -22,7 +23,7 @@ function AuthPage() {
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
     if (token) {
-      fetch("http://localhost:8000/api/v1/auth/session", {
+      fetch(`${API_BASE_URL}/api/v1/auth/session`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => {
@@ -38,7 +39,7 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const res = await fetch("http://localhost:8000/api/v1/auth/signup", {
+        const res = await fetch(`${API_BASE_URL}/api/v1/auth/signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, name }),
@@ -54,7 +55,7 @@ function AuthPage() {
           toast.success("Account created", { description: "You're signed in." });
         } else {
           // Log in directly
-          const loginRes = await fetch("http://localhost:8000/api/v1/auth/login", {
+          const loginRes = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
@@ -71,7 +72,7 @@ function AuthPage() {
           }
         }
       } else {
-        const res = await fetch("http://localhost:8000/api/v1/auth/login", {
+        const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),

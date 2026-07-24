@@ -16,18 +16,20 @@ import {
   Legend,
   BarChart,
   Bar,
-  ScatterChart,
-  Scatter,
 } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { formatINR } from "@/lib/utils";
+import { apiFetch } from "@/lib/api-client";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -44,143 +46,266 @@ type Expense = {
 };
 type Category = { id: string; name: string; is_mandatory: boolean };
 
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
 function Dashboard() {
   const qc = useQueryClient();
 
-  // Selected month state in YYYY-MM format
+  // Selected period state in YYYY-MM or YYYY-YEAR format
   const currentMonthKey = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }, []);
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(currentMonthKey);
 
   const { data: expenses = [] } = useQuery<Expense[]>({
     queryKey: ["expenses"],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch("http://localhost:8000/api/v1/expenses", { headers });
-      if (!res.ok) throw new Error("Failed to fetch expenses");
-      return (await res.json()) as Expense[];
-    },
+    queryFn: () => apiFetch("/expenses"),
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["categories"],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch("http://localhost:8000/api/v1/categories", { headers });
-      if (!res.ok) throw new Error("Failed to fetch categories");
-      return (await res.json()) as Category[];
-    },
+    queryFn: () => apiFetch("/categories"),
   });
 
-  // Generate list of available months from expenses data (plus current month)
-  const monthOptions = useMemo(() => {
+  // Generate period options (months and full-year totals)
+  const { monthOptions, yearOptions } = useMemo(() => {
     const monthsSet = new Set<string>();
+    const yearsSet = new Set<string>();
+
     monthsSet.add(currentMonthKey);
+    yearsSet.add(currentMonthKey.slice(0, 4));
+
     for (const e of expenses) {
       if (e.expense_date) {
-        const key = e.expense_date.slice(0, 7); // YYYY-MM
-        if (/^\d{4}-\d{2}$/.test(key)) {
-          monthsSet.add(key);
-        }
+        const mKey = e.expense_date.slice(0, 7); // YYYY-MM
+        const yKey = e.expense_date.slice(0, 4); // YYYY
+        if (/^\d{4}-\d{2}$/.test(mKey)) monthsSet.add(mKey);
+        if (/^\d{4}$/.test(yKey)) yearsSet.add(yKey);
       }
     }
-    return Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+
+    const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+    const sortedYears = Array.from(yearsSet)
+      .sort((a, b) => b.localeCompare(a))
+      .map((y) => `${y}-YEAR`);
+
+    return { monthOptions: sortedMonths, yearOptions: sortedYears };
   }, [expenses, currentMonthKey]);
 
-  // Selected month start & end dates
-  const [selYear, selMon] = selectedMonth.split("-").map(Number);
-  const selectedMonthStart = new Date(selYear, selMon - 1, 1);
-  const daysInSelectedMonth = new Date(selYear, selMon, 0).getDate();
+  const isYearMode = selectedPeriod.endsWith("-YEAR");
+  const selectedYear = Number(selectedPeriod.split("-")[0]);
+  const selectedMonthNum = isYearMode ? null : Number(selectedPeriod.split("-")[1]);
 
-  // Filter expenses for selected month
-  const selectedMonthExpenses = useMemo(() => {
+  const formatPeriodLabel = (pKey: string) => {
+    if (pKey.endsWith("-YEAR")) {
+      const y = pKey.split("-")[0];
+      return `Total (${y})`;
+    }
+    const [y, m] = pKey.split("-").map(Number);
+    const date = new Date(y, m - 1, 1);
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
+  // Filter expenses for selected period (excluding mandatory home expenses for graph analysis)
+  const selectedPeriodExpenses = useMemo(() => {
     return expenses.filter((e) => {
       if (!e.expense_date) return false;
-      return e.expense_date.startsWith(selectedMonth);
-    });
-  }, [expenses, selectedMonth]);
-
-  // Daily Dot Plot Data for selected month (1 entry per day of month)
-  const dotPlotData = useMemo(() => {
-    const map = new Map<number, { day: number; spend: number; count: number }>();
-    for (let i = 1; i <= daysInSelectedMonth; i++) {
-      map.set(i, { day: i, spend: 0, count: 0 });
-    }
-
-    for (const e of selectedMonthExpenses) {
-      if (e.category?.toLowerCase() === "home-mandatory") continue;
-      const d = new Date(e.expense_date).getDate();
-      if (map.has(d)) {
-        const item = map.get(d)!;
-        item.spend += Number(e.total_paid);
-        item.count += 1;
+      if (isYearMode) {
+        return e.expense_date.startsWith(`${selectedYear}`);
       }
+      return e.expense_date.startsWith(selectedPeriod);
+    });
+  }, [expenses, selectedPeriod, isYearMode, selectedYear]);
+
+  const discretionaryExpenses = useMemo(() => {
+    return selectedPeriodExpenses.filter(
+      (e) =>
+        e.category?.toLowerCase() !== "home-mandatory" &&
+        e.category?.toLowerCase() !== "extra charge",
+    );
+  }, [selectedPeriodExpenses]);
+
+  // Previous Period Expenses for comparison %
+  const prevPeriodExpenses = useMemo(() => {
+    if (isYearMode) {
+      const prevYearStr = `${selectedYear - 1}`;
+      return expenses.filter(
+        (e) =>
+          e.expense_date?.startsWith(prevYearStr) &&
+          e.category?.toLowerCase() !== "home-mandatory" &&
+          e.category?.toLowerCase() !== "extra charge",
+      );
+    } else if (selectedMonthNum !== null) {
+      const prevDate = new Date(selectedYear, selectedMonthNum - 2, 1);
+      const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+      return expenses.filter(
+        (e) =>
+          e.expense_date?.startsWith(prevMonthKey) &&
+          e.category?.toLowerCase() !== "home-mandatory" &&
+          e.category?.toLowerCase() !== "extra charge",
+      );
     }
+    return [];
+  }, [expenses, isYearMode, selectedYear, selectedMonthNum]);
 
-    return Array.from(map.values());
-  }, [selectedMonthExpenses, daysInSelectedMonth]);
-
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-
-  const thisMonth = expenses.filter(
-    (e) => new Date(e.expense_date) >= monthStart && e.category?.toLowerCase() !== "home-mandatory",
+  const totalThisPeriod = discretionaryExpenses.reduce(
+    (s, e) => s + Number(e.total_paid),
+    0,
   );
-  const lastMonth = expenses.filter((e) => {
-    const d = new Date(e.expense_date);
-    return d >= lastMonthStart && d < monthStart && e.category?.toLowerCase() !== "home-mandatory";
-  });
-  const totalThis = thisMonth.reduce((s, e) => s + Number(e.total_paid), 0);
-  const totalLast = lastMonth.reduce((s, e) => s + Number(e.total_paid), 0);
-  const delta = totalLast > 0 ? ((totalThis - totalLast) / totalLast) * 100 : 0;
+  const totalPrevPeriod = prevPeriodExpenses.reduce(
+    (s, e) => s + Number(e.total_paid),
+    0,
+  );
+  const delta =
+    totalPrevPeriod > 0
+      ? ((totalThisPeriod - totalPrevPeriod) / totalPrevPeriod) * 100
+      : 0;
 
-  const monthBudget = 20000;
+  const budgetAmount = isYearMode ? 240000 : 20000;
+  const budgetPct =
+    budgetAmount > 0 ? Math.min(100, (totalThisPeriod / budgetAmount) * 100) : 0;
 
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const lineData = useMemo(() => {
-    const map = new Map<number, number>();
-    for (let i = 1; i <= daysInMonth; i++) map.set(i, 0);
-    let cum = 0;
-    for (let i = 1; i <= daysInMonth; i++) {
-      const day = thisMonth
-        .filter((e) => new Date(e.expense_date).getDate() === i)
-        .reduce((s, e) => s + Number(e.total_paid), 0);
-      cum += day;
-      map.set(i, cum);
+  // Primary Breakdown Chart Data (Daily for Month mode, Monthly for Year mode)
+  const breakdownChartData = useMemo(() => {
+    if (isYearMode) {
+      const map = new Map<number, { label: string; monthName: string; spend: number; count: number }>();
+      for (let m = 1; m <= 12; m++) {
+        map.set(m, { label: MONTH_NAMES[m - 1], monthName: MONTH_NAMES[m - 1], spend: 0, count: 0 });
+      }
+      for (const e of discretionaryExpenses) {
+        const dateObj = new Date(e.expense_date);
+        const m = dateObj.getMonth() + 1;
+        if (map.has(m)) {
+          const item = map.get(m)!;
+          item.spend += Number(e.total_paid);
+          item.count += 1;
+        }
+      }
+      return Array.from(map.values());
+    } else if (selectedMonthNum !== null) {
+      const daysInMonth = new Date(selectedYear, selectedMonthNum, 0).getDate();
+      const map = new Map<number, { label: number; day: number; spend: number; count: number }>();
+      for (let d = 1; d <= daysInMonth; d++) {
+        map.set(d, { label: d, day: d, spend: 0, count: 0 });
+      }
+      for (const e of discretionaryExpenses) {
+        const d = new Date(e.expense_date).getDate();
+        if (map.has(d)) {
+          const item = map.get(d)!;
+          item.spend += Number(e.total_paid);
+          item.count += 1;
+        }
+      }
+      return Array.from(map.values());
     }
-    return Array.from(map.entries()).map(([day, value]) => ({ day, value }));
-  }, [thisMonth, daysInMonth]);
+    return [];
+  }, [discretionaryExpenses, isYearMode, selectedYear, selectedMonthNum]);
 
+  // Cumulative Line Chart Data
+  const lineData = useMemo(() => {
+    if (isYearMode) {
+      let cum = 0;
+      return MONTH_NAMES.map((mName, idx) => {
+        const monthNum = idx + 1;
+        const monthSpend = discretionaryExpenses
+          .filter((e) => new Date(e.expense_date).getMonth() + 1 === monthNum)
+          .reduce((s, e) => s + Number(e.total_paid), 0);
+        cum += monthSpend;
+        return { label: mName, value: cum };
+      });
+    } else if (selectedMonthNum !== null) {
+      const daysInMonth = new Date(selectedYear, selectedMonthNum, 0).getDate();
+      let cum = 0;
+      const res = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const daySpend = discretionaryExpenses
+          .filter((e) => new Date(e.expense_date).getDate() === d)
+          .reduce((s, e) => s + Number(e.total_paid), 0);
+        cum += daySpend;
+        res.push({ label: d, value: cum });
+      }
+      return res;
+    }
+    return [];
+  }, [discretionaryExpenses, isYearMode, selectedYear, selectedMonthNum]);
+
+  // Category Breakdown Pie Data with Unique Category Colors
   const pieData = useMemo(() => {
     const totals = new Map<string, number>();
-    for (const e of thisMonth) {
+    for (const e of discretionaryExpenses) {
       if (!e.category) continue;
       totals.set(e.category, (totals.get(e.category) ?? 0) + Number(e.total_paid));
     }
-    const colors: Record<string, string> = {
+
+    const categoryColors: Record<string, string> = {
       Groceries: "#2E7D32",
+      Leisure: "#0284C7",
+      "Extra Charge": "#E11D48",
+      "Home Items": "#7C3AED",
+      "Home-Mandatory": "#D97706",
+      Food_Office: "#EA580C",
+      Cosmetics: "#DB2777",
+      "Medical Health": "#059669",
+      Home: "#4F46E5",
+      Puja: "#F59E0B",
+      Travel: "#0891B2",
+      "PC Rig": "#9333EA",
+      Clothes: "#C026D3",
+      Mandir: "#B45309",
+      Electronics: "#2563EB",
+      "Phone Recharge": "#10B981",
+      Activa: "#65A30D",
       Dining: "#E65100",
       Transport: "#455A64",
       Shopping: "#6A1B9A",
       Utilities: "#1565C0",
       Entertainment: "#C2185B",
       Health: "#00838F",
-      Other: "#546E7A",
+      Other: "#64748B",
     };
-    return Array.from(totals.entries())
-      .map(([name, value]) => ({
+
+    const fallbackPalette = [
+      "#0284C7", "#E11D48", "#7C3AED", "#EA580C", "#DB2777",
+      "#059669", "#4F46E5", "#F59E0B", "#0891B2", "#9333EA",
+      "#C026D3", "#2563EB", "#10B981", "#65A30D", "#455A64"
+    ];
+
+    const entries = Array.from(totals.entries()).filter((d) => d[1] > 0);
+
+    return entries.map(([name, value], idx) => {
+      let color = categoryColors[name];
+      if (!color) {
+        // Deterministic HSL hue based on category name string hash
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+          hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const hue = Math.abs(hash) % 360;
+        color = `hsl(${hue}, 65%, 45%)`;
+      }
+      return {
         name,
         value,
-        color: colors[name] || "#64748b",
-      }))
-      .filter((d) => d.value > 0);
-  }, [thisMonth]);
+        color,
+      };
+    });
+  }, [discretionaryExpenses]);
 
+  // Sub-category Breakdown Data
   const subCategoryData = useMemo(() => {
     const targetSubCategories = [
       "Snacks",
@@ -197,7 +322,7 @@ function Dashboard() {
       totals[sub] = 0;
     }
 
-    for (const e of thisMonth) {
+    for (const e of discretionaryExpenses) {
       const itemStr = (e.item_name || "").toLowerCase();
       const catStr = (e.category || "").toLowerCase();
       const subCatStr = (e.sub_category || "").toLowerCase();
@@ -210,10 +335,27 @@ function Dashboard() {
           itemStr.includes(targetLower) ||
           catStr.includes(targetLower) ||
           remarksStr.includes(targetLower) ||
-          (targetLower === "eating out" && (catStr.includes("dining") || itemStr.includes("restaurant") || itemStr.includes("swiggy") || itemStr.includes("zomato"))) ||
-          (targetLower === "vegetables" && (itemStr.includes("veggie") || itemStr.includes("sabzi") || itemStr.includes("tomato") || itemStr.includes("potato") || itemStr.includes("onion"))) ||
-          (targetLower === "fruits" && (itemStr.includes("apple") || itemStr.includes("banana") || itemStr.includes("mango") || itemStr.includes("orange"))) ||
-          (targetLower === "snacks" && (itemStr.includes("snack") || itemStr.includes("chip") || itemStr.includes("biscuit") || itemStr.includes("namkeen")))
+          (targetLower === "eating out" &&
+            (catStr.includes("dining") ||
+              itemStr.includes("restaurant") ||
+              itemStr.includes("swiggy") ||
+              itemStr.includes("zomato"))) ||
+          (targetLower === "vegetables" &&
+            (itemStr.includes("veggie") ||
+              itemStr.includes("sabzi") ||
+              itemStr.includes("tomato") ||
+              itemStr.includes("potato") ||
+              itemStr.includes("onion"))) ||
+          (targetLower === "fruits" &&
+            (itemStr.includes("apple") ||
+              itemStr.includes("banana") ||
+              itemStr.includes("mango") ||
+              itemStr.includes("orange"))) ||
+          (targetLower === "snacks" &&
+            (itemStr.includes("snack") ||
+              itemStr.includes("chip") ||
+              itemStr.includes("biscuit") ||
+              itemStr.includes("namkeen")))
         ) {
           totals[target] += Number(e.total_paid);
           break;
@@ -236,9 +378,7 @@ function Dashboard() {
       value: totals[name],
       fill: colors[name] || "#64748b",
     }));
-  }, [thisMonth]);
-
-  const budgetPct = monthBudget > 0 ? Math.min(100, (totalThis / monthBudget) * 100) : 0;
+  }, [discretionaryExpenses]);
 
   const { data: sessionData } = useQuery({
     queryKey: ["session"],
@@ -253,13 +393,18 @@ function Dashboard() {
     },
   });
 
-  const userName = sessionData?.user?.full_name || sessionData?.user?.email?.split("@")[0];
+  const userName =
+    sessionData?.user?.full_name || sessionData?.user?.email?.split("@")[0];
 
-  const formatMonthLabel = (mKey: string) => {
-    const [y, m] = mKey.split("-").map(Number);
-    const date = new Date(y, m - 1, 1);
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  };
+  const prevPeriodLabel = isYearMode
+    ? `${selectedYear - 1}`
+    : selectedMonthNum !== null
+      ? formatPeriodLabel(
+          `${new Date(selectedYear, selectedMonthNum - 2, 1).getFullYear()}-${String(
+            new Date(selectedYear, selectedMonthNum - 2, 1).getMonth() + 1,
+          ).padStart(2, "0")}`,
+        )
+      : "previous period";
 
   return (
     <div className="space-y-6">
@@ -272,29 +417,48 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Top Bar Chart for Daily Spend */}
+      {/* Top Bar Chart for Spend Breakdown & Global Date Filter */}
       <div className="card-soft p-5">
         <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <div>
             <div className="text-sm font-semibold flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" /> Daily Spend Breakdown
+              <Calendar className="h-4 w-4 text-primary" />{" "}
+              {isYearMode ? "Monthly Spend Breakdown" : "Daily Spend Breakdown"}
             </div>
             <div className="text-xs text-muted-foreground">
-              Day-by-day expenditure for {formatMonthLabel(selectedMonth)}
+              {isYearMode
+                ? `Month-by-month expenditure for ${formatPeriodLabel(selectedPeriod)}`
+                : `Day-by-day expenditure for ${formatPeriodLabel(selectedPeriod)}`}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground font-medium">Select Month:</span>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[180px] h-9 text-xs">
+            <span className="text-xs text-muted-foreground font-medium">Select Period:</span>
+            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+              <SelectTrigger className="w-[190px] h-9 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {monthOptions.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {formatMonthLabel(m)}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">
+                    Monthly Views
+                  </SelectLabel>
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {formatPeriodLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">
+                    Annual Totals
+                  </SelectLabel>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={y}>
+                      {formatPeriodLabel(y)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>
@@ -302,14 +466,14 @@ function Dashboard() {
 
         <div className="h-72">
           <ResponsiveContainer>
-            <BarChart data={dotPlotData} margin={{ top: 15, right: 10, bottom: 5, left: 10 }}>
+            <BarChart data={breakdownChartData} margin={{ top: 15, right: 10, bottom: 5, left: 10 }}>
               <CartesianGrid
                 stroke="oklch(0.92 0.008 260)"
                 strokeDasharray="3 3"
                 vertical={false}
               />
               <XAxis
-                dataKey="day"
+                dataKey="label"
                 stroke="oklch(0.6 0.02 260)"
                 fontSize={11}
                 tickLine={false}
@@ -329,7 +493,9 @@ function Dashboard() {
                     return (
                       <div className="rounded-xl border border-border/80 bg-card p-3 shadow-lg text-xs space-y-1">
                         <div className="font-semibold text-foreground">
-                          Day {data.day} ({formatMonthLabel(selectedMonth)})
+                          {isYearMode
+                            ? `${data.monthName} (${selectedYear})`
+                            : `Day ${data.day} (${formatPeriodLabel(selectedPeriod)})`}
                         </div>
                         <div className="text-primary font-medium">
                           Total Spend: {formatINR(data.spend)}
@@ -343,10 +509,10 @@ function Dashboard() {
                   return null;
                 }}
               />
-              <Bar dataKey="spend" radius={[4, 4, 0, 0]} maxBarSize={30}>
-                {dotPlotData.map((entry, index) => (
+              <Bar dataKey="spend" radius={[4, 4, 0, 0]} maxBarSize={35}>
+                {breakdownChartData.map((entry, index) => (
                   <Cell
-                    key={`daily-bar-${index}`}
+                    key={`bar-${index}`}
                     fill={entry.spend > 0 ? "oklch(0.48 0.16 275)" : "oklch(0.92 0.008 260)"}
                   />
                 ))}
@@ -358,25 +524,25 @@ function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
-          title="Spent this month"
-          value={formatINR(totalThis)}
+          title={isYearMode ? `Spent in ${selectedYear}` : "Spent this month"}
+          value={formatINR(totalThisPeriod)}
           icon={Wallet}
-          sub={`${thisMonth.length} transactions`}
+          sub={`${discretionaryExpenses.length} transactions (${formatPeriodLabel(selectedPeriod)})`}
         />
         <StatCard
-          title="vs last month"
+          title={isYearMode ? "vs last year" : "vs last month"}
           value={`${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`}
           icon={delta >= 0 ? TrendingUp : TrendingDown}
-          sub={formatINR(totalLast) + " last month"}
+          sub={`${formatINR(totalPrevPeriod)} (${prevPeriodLabel})`}
           tone={delta >= 0 ? "warn" : "good"}
         />
         <div className="card-soft p-5">
           <div className="text-xs text-muted-foreground uppercase tracking-wider">
-            Monthly budget
+            {isYearMode ? "Annual budget" : "Monthly budget"}
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <div className="text-2xl font-semibold num">{formatINR(totalThis)}</div>
-            <div className="text-sm text-muted-foreground num">/ {formatINR(monthBudget)}</div>
+            <div className="text-2xl font-semibold num">{formatINR(totalThisPeriod)}</div>
+            <div className="text-sm text-muted-foreground num">/ {formatINR(budgetAmount)}</div>
           </div>
           <Progress value={budgetPct} className="mt-3 h-2" />
           <div className="mt-1 text-xs text-muted-foreground">{budgetPct.toFixed(0)}% used</div>
@@ -388,7 +554,11 @@ function Dashboard() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-sm font-semibold">Cumulative spend</div>
-              <div className="text-xs text-muted-foreground">This month, day by day</div>
+              <div className="text-xs text-muted-foreground">
+                {isYearMode
+                  ? `${selectedYear}, month by month`
+                  : `${formatPeriodLabel(selectedPeriod)}, day by day`}
+              </div>
             </div>
           </div>
           <div className="h-72">
@@ -400,7 +570,7 @@ function Dashboard() {
                   vertical={false}
                 />
                 <XAxis
-                  dataKey="day"
+                  dataKey="label"
                   stroke="oklch(0.6 0.02 260)"
                   fontSize={11}
                   tickLine={false}
@@ -437,7 +607,7 @@ function Dashboard() {
           <div className="text-sm font-semibold mb-3">Category breakdown</div>
           {pieData.length === 0 ? (
             <div className="h-72 grid place-items-center text-sm text-muted-foreground">
-              No spending yet this month.
+              No spending recorded for {formatPeriodLabel(selectedPeriod)}.
             </div>
           ) : (
             <div className="h-72">
@@ -470,7 +640,7 @@ function Dashboard() {
       <div className="card-soft p-5">
         <div className="text-sm font-semibold mb-1">Sub-category Spending</div>
         <div className="text-xs text-muted-foreground mb-4">
-          Spending breakdown across key daily sub-categories
+          Spending breakdown across key daily sub-categories ({formatPeriodLabel(selectedPeriod)})
         </div>
         <div className="h-72">
           <ResponsiveContainer>
@@ -515,10 +685,6 @@ function Dashboard() {
   );
 }
 
-function fmt(n: number) {
-  return formatINR(n);
-}
-
 function StatCard({
   title,
   value,
@@ -553,3 +719,4 @@ function StatCard({
     </div>
   );
 }
+

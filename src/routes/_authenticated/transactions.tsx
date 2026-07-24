@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -19,9 +22,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Search } from "lucide-react";
+import { Plus, Trash2, Search, RotateCcw, Wallet, Receipt, CreditCard, Sparkles, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatINR, formatDateHelper } from "@/lib/utils";
+import { apiFetch } from "@/lib/api-client";
 
 export const Route = createFileRoute("/_authenticated/transactions")({
   component: TransactionsPage,
@@ -63,29 +67,27 @@ const DEFAULT_CATEGORIES = [
 
 function TransactionsPage() {
   const qc = useQueryClient();
+
+  const currentMonthKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
   const [filter, setFilter] = useState("");
   const [catFilter, setCatFilter] = useState<string>("all");
+  const [subCatFilter, setSubCatFilter] = useState<string>("all");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>(currentMonthKey);
   const [open, setOpen] = useState(false);
 
   const { data: rows = [] } = useQuery<Expense[]>({
     queryKey: ["expenses"],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch("http://localhost:8000/api/v1/expenses", { headers });
-      if (!res.ok) throw new Error("Failed to fetch expenses");
-      return (await res.json()) as Expense[];
-    },
+    queryFn: () => apiFetch("/expenses"),
   });
+
   const { data: cats = [] } = useQuery<Category[]>({
     queryKey: ["categories"],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch("http://localhost:8000/api/v1/categories", { headers });
-      if (!res.ok) throw new Error("Failed to fetch categories");
-      return (await res.json()) as Category[];
-    },
+    queryFn: () => apiFetch("/categories"),
   });
 
   const allCategories = useMemo(() => {
@@ -99,25 +101,91 @@ function TransactionsPage() {
     return list;
   }, [cats]);
 
+  // Derived unique sub-categories, services, and period options from expenses dataset
+  const { uniqueSubCats, uniqueServices, monthOptions, yearOptions } = useMemo(() => {
+    const subSet = new Set<string>();
+    const servSet = new Set<string>();
+    const monthsSet = new Set<string>();
+    const yearsSet = new Set<string>();
+
+    for (const r of rows) {
+      if (r.sub_category && r.sub_category.trim()) {
+        subSet.add(r.sub_category.trim());
+      }
+      if (r.service && r.service.trim()) {
+        servSet.add(r.service.trim());
+      }
+      if (r.expense_date) {
+        const mKey = r.expense_date.slice(0, 7); // YYYY-MM
+        const yKey = r.expense_date.slice(0, 4); // YYYY
+        if (/^\d{4}-\d{2}$/.test(mKey)) monthsSet.add(mKey);
+        if (/^\d{4}$/.test(yKey)) yearsSet.add(yKey);
+      }
+    }
+
+    const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+    const sortedYears = Array.from(yearsSet)
+      .sort((a, b) => b.localeCompare(a))
+      .map((y) => `${y}-YEAR`);
+
+    return {
+      uniqueSubCats: Array.from(subSet).sort((a, b) => a.localeCompare(b)),
+      uniqueServices: Array.from(servSet).sort((a, b) => a.localeCompare(b)),
+      monthOptions: sortedMonths,
+      yearOptions: sortedYears,
+    };
+  }, [rows]);
+
+  const formatPeriodLabel = (pKey: string) => {
+    if (pKey === "all") return "Period: All";
+    if (pKey.endsWith("-YEAR")) {
+      const y = pKey.split("-")[0];
+      return `Total (${y})`;
+    }
+    const [y, m] = pKey.split("-").map(Number);
+    const date = new Date(y, m - 1, 1);
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
   const filtered = useMemo(() => {
     const list = rows.filter((r) => {
       const okCat = catFilter === "all" || r.category === catFilter;
+      const okSubCat =
+        subCatFilter === "all" ||
+        (r.sub_category || "").trim().toLowerCase() === subCatFilter.trim().toLowerCase();
+      const okService =
+        serviceFilter === "all" ||
+        (r.service || "").trim().toLowerCase() === serviceFilter.trim().toLowerCase();
+
+      let okPeriod = true;
+      if (periodFilter !== "all") {
+        if (periodFilter.endsWith("-YEAR")) {
+          const yearStr = periodFilter.split("-")[0];
+          okPeriod = Boolean(r.expense_date && r.expense_date.startsWith(yearStr));
+        } else {
+          okPeriod = Boolean(r.expense_date && r.expense_date.startsWith(periodFilter));
+        }
+      }
+
       const okQ =
         !filter ||
         r.item_name.toLowerCase().includes(filter.toLowerCase()) ||
+        r.service?.toLowerCase().includes(filter.toLowerCase()) ||
+        r.brand?.toLowerCase().includes(filter.toLowerCase()) ||
         r.sub_category?.toLowerCase().includes(filter.toLowerCase()) ||
         r.remarks?.toLowerCase().includes(filter.toLowerCase());
-      return okCat && okQ;
+
+      return okCat && okSubCat && okService && okPeriod && okQ;
     });
 
     // Sort descending by date (latest first)
     return list.sort(
       (a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime(),
     );
-  }, [rows, filter, catFilter]);
+  }, [rows, filter, catFilter, subCatFilter, serviceFilter, periodFilter]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
   const currentPage = Math.min(page, totalPages);
@@ -127,24 +195,31 @@ function TransactionsPage() {
   }, [filtered, currentPage]);
 
   const total = filtered.reduce((s, r) => s + Number(r.total_paid), 0);
+  const avgSpent = filtered.length > 0 ? total / filtered.length : 0;
+
+  const resetFilters = () => {
+    setFilter("");
+    setCatFilter("all");
+    setSubCatFilter("all");
+    setServiceFilter("all");
+    setPeriodFilter(currentMonthKey);
+    setPage(1);
+  };
+
+  const isFiltered =
+    filter !== "" ||
+    catFilter !== "all" ||
+    subCatFilter !== "all" ||
+    serviceFilter !== "all" ||
+    periodFilter !== currentMonthKey;
 
   const update = async (id: string, patch: Partial<Expense>) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`http://localhost:8000/api/v1/expenses/${id}`, {
+      await apiFetch(`/expenses/${id}`, {
         method: "PUT",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText);
-      }
       toast.success("Updated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to update");
@@ -154,18 +229,9 @@ function TransactionsPage() {
 
   const remove = async (id: string) => {
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`http://localhost:8000/api/v1/expenses/${id}`, {
+      await apiFetch(`/expenses/${id}`, {
         method: "DELETE",
-        headers,
       });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText);
-      }
       toast.success("Deleted");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to delete");
@@ -173,68 +239,251 @@ function TransactionsPage() {
     qc.invalidateQueries({ queryKey: ["expenses"] });
   };
 
+  const { data: paymentMethods = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["payment-methods"],
+    queryFn: async () => {
+      try {
+        return await apiFetch("/payment-methods");
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const allPaymentMethods = useMemo(() => {
+    const defaults = ["Cash", "Card", "UPI", "Net Banking", "Wallet", "Unknown"];
+    const list = paymentMethods.map((pm) => pm.name);
+    defaults.forEach((d) => {
+      if (!list.some((m) => m.toLowerCase() === d.toLowerCase())) {
+        list.push(d);
+      }
+    });
+    return list;
+  }, [paymentMethods]);
+
   return (
     <div className="space-y-6">
+      {/* Header with Title & Add Transaction Action */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} entries · {formatINR(total)}
+            Manage, filter, and track all your logged expenses.
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 shadow-sm">
               <Plus className="h-4 w-4" /> Add transaction
             </Button>
           </DialogTrigger>
-          <NewTxDialog cats={allCategories} onClose={() => setOpen(false)} />
+          <NewTxDialog cats={allCategories} paymentMethods={allPaymentMethods} onClose={() => setOpen(false)} />
         </Dialog>
       </div>
 
-      <div className="card-soft p-4 flex gap-3 items-center flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search item, sub-category, or remarks…"
-            value={filter}
-            onChange={(e) => {
-              setFilter(e.target.value);
-              setPage(1);
-            }}
-            className="pl-9"
-          />
+      {/* Aesthetic Summary Stat Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="card-soft p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Total Filtered Spend
+            </span>
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary grid place-items-center">
+              <Wallet className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-semibold num">{formatINR(total)}</div>
+          <div className="text-xs text-muted-foreground mt-1 font-medium">
+            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} shown ({formatPeriodLabel(periodFilter)})
+          </div>
         </div>
-        <Select
-          value={catFilter}
-          onValueChange={(v) => {
-            setCatFilter(v);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {allCategories.map((c) => (
-              <SelectItem key={c.name} value={c.name}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        <div className="card-soft p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Total Entries
+            </span>
+            <div className="h-8 w-8 rounded-lg bg-accent/80 text-foreground grid place-items-center">
+              <Receipt className="h-4 w-4 text-primary" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-semibold num">{filtered.length}</div>
+          <div className="text-xs text-muted-foreground mt-1 font-medium">
+            Out of {rows.length} total logged
+          </div>
+        </div>
+
+        <div className="card-soft p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Avg Spent / Tx
+            </span>
+            <div className="h-8 w-8 rounded-lg bg-[color:var(--color-success)]/10 text-[color:var(--color-success)] grid place-items-center">
+              <CreditCard className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-semibold num">{formatINR(avgSpent)}</div>
+          <div className="text-xs text-muted-foreground mt-1 font-medium">Average transaction size</div>
+        </div>
       </div>
 
+      {/* Multi-Field Filter Bar */}
+      <div className="card-soft p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-primary" /> Filter Transactions
+          </div>
+          {isFiltered && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetFilters}
+              className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+            >
+              <RotateCcw className="h-3 w-3" /> Reset Filters
+            </Button>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-center">
+          {/* Search Input */}
+          <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search item, brand, remarks…"
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setPage(1);
+              }}
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
+
+          {/* Period Filter (Month-wise & Annual Totals) */}
+          <div className="w-full">
+            <Select
+              value={periodFilter}
+              onValueChange={(v) => {
+                setPeriodFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Period: All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Period: All</SelectItem>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground font-semibold px-2 py-1 flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-primary" /> Monthly Views
+                  </SelectLabel>
+                  {monthOptions.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {formatPeriodLabel(m)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator />
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground font-semibold px-2 py-1">
+                    Annual Totals
+                  </SelectLabel>
+                  {yearOptions.map((y) => (
+                    <SelectItem key={y} value={y}>
+                      {formatPeriodLabel(y)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Category Filter */}
+          <div className="w-full">
+            <Select
+              value={catFilter}
+              onValueChange={(v) => {
+                setCatFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Category: All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Category: All</SelectItem>
+                {allCategories.map((c) => (
+                  <SelectItem key={c.name} value={c.name}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sub-Category Filter */}
+          <div className="w-full">
+            <Select
+              value={subCatFilter}
+              onValueChange={(v) => {
+                setSubCatFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Sub-Category: All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Sub-Category: All</SelectItem>
+                {uniqueSubCats.map((sc) => (
+                  <SelectItem key={sc} value={sc}>
+                    {sc}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Service Filter */}
+          <div className="w-full">
+            <Select
+              value={serviceFilter}
+              onValueChange={(v) => {
+                setServiceFilter(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 text-xs w-full">
+                <SelectValue placeholder="Service: All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Service: All</SelectItem>
+                {uniqueServices.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Styled Transactions Table */}
       <div className="card-soft overflow-hidden">
-        <div className="grid grid-cols-[100px_1fr_150px_130px_110px_40px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
+        <div className="grid grid-cols-[95px_1fr_120px_130px_110px_110px_90px_35px] gap-2.5 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
           <div>Date</div>
           <div>Item Name</div>
+          <div>Service</div>
           <div>Category</div>
           <div>Sub-Category</div>
+          <div>Brand</div>
           <div className="text-right">Total Paid</div>
           <div />
         </div>
+
         <div className="divide-y divide-border/60">
           {paginatedRows.map((r) => {
             const colors: Record<string, string> = {
@@ -251,9 +500,9 @@ function TransactionsPage() {
             return (
               <div
                 key={r.id}
-                className="grid grid-cols-[100px_1fr_150px_130px_110px_40px] gap-3 px-5 py-2.5 items-center hover:bg-accent/40 transition-colors group"
+                className="grid grid-cols-[95px_1fr_120px_130px_110px_110px_90px_35px] gap-2.5 px-4 py-2.5 items-center hover:bg-accent/40 transition-colors group text-xs"
               >
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="font-medium text-muted-foreground truncate">
                   {formatDateHelper(r.expense_date)}
                 </span>
                 <Input
@@ -261,15 +510,24 @@ function TransactionsPage() {
                   onBlur={(e) =>
                     e.target.value !== r.item_name && update(r.id, { item_name: e.target.value })
                   }
-                  className="h-8 text-sm border-transparent hover:border-border"
+                  className="h-8 text-xs border-transparent hover:border-border"
+                />
+                <Input
+                  defaultValue={r.service ?? ""}
+                  placeholder="—"
+                  onBlur={(e) =>
+                    e.target.value !== (r.service ?? "") &&
+                    update(r.id, { service: e.target.value || null })
+                  }
+                  className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground font-medium"
                 />
                 <Select
                   value={r.category ?? "Other"}
                   onValueChange={(v) => update(r.id, { category: v })}
                 >
                   <SelectTrigger className="h-8 text-xs border-transparent hover:border-border">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="h-2 w-2 rounded-full" style={{ background: catColor }} />
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: catColor }} />
                       <SelectValue />
                     </div>
                   </SelectTrigger>
@@ -291,6 +549,15 @@ function TransactionsPage() {
                   className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
                 />
                 <Input
+                  defaultValue={r.brand ?? ""}
+                  placeholder="—"
+                  onBlur={(e) =>
+                    e.target.value !== (r.brand ?? "") &&
+                    update(r.id, { brand: e.target.value || null })
+                  }
+                  className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
+                />
+                <Input
                   type="number"
                   step="0.01"
                   defaultValue={Number(r.total_paid)}
@@ -299,28 +566,41 @@ function TransactionsPage() {
                     update(r.id, { total_paid: Number(e.target.value) })
                   }
                   className={cn(
-                    "h-8 text-sm text-right num border-transparent hover:border-border",
+                    "h-8 text-xs text-right num border-transparent hover:border-border font-medium",
                   )}
                 />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
                   onClick={() => remove(r.id)}
                 >
-                  <Trash2 className="h-4 w-4 text-destructive" />
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               </div>
             );
           })}
+
           {filtered.length === 0 && (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              No matching transactions.
+            <div className="py-14 text-center space-y-2">
+              <div className="mx-auto h-12 w-12 rounded-2xl bg-muted/60 text-muted-foreground grid place-items-center">
+                <Search className="h-5 w-5 opacity-60" />
+              </div>
+              <div className="text-sm font-semibold text-foreground">No matching transactions</div>
+              <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+                No entries match your selected search or filters. Try adjusting your Category, Sub-Category, or Service filter.
+              </div>
+              {isFiltered && (
+                <Button variant="outline" size="sm" onClick={resetFilters} className="mt-2 h-8 text-xs gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5" /> Clear active filters
+                </Button>
+              )}
             </div>
           )}
         </div>
+
         {filtered.length > 0 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-border/60 text-xs text-muted-foreground bg-muted/10">
+          <div className="flex items-center justify-between px-5 py-3 border-t border-border/60 text-xs text-muted-foreground bg-muted/10 flex-wrap gap-2">
             <div>
               Showing {Math.min((currentPage - 1) * PAGE_SIZE + 1, filtered.length)} to{" "}
               {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} entries
@@ -355,7 +635,15 @@ function TransactionsPage() {
   );
 }
 
-function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void }) {
+function NewTxDialog({
+  cats,
+  paymentMethods,
+  onClose,
+}: {
+  cats: Category[];
+  paymentMethods: string[];
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
   const [expense_date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [item_name, setItemName] = useState("");
@@ -367,7 +655,7 @@ function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void 
   const [location, setLocation] = useState("");
   const [quantity, setQuantity] = useState("");
   const [remarks, setRemarks] = useState("");
-  const [payment_method, setPaymentMethod] = useState("Unknown");
+  const [payment_method, setPaymentMethod] = useState<string>(paymentMethods[0] ?? "Cash");
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -377,20 +665,14 @@ function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void 
     }
     setSaving(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
       let finalRemarks = remarks;
       if (quantity) {
         finalRemarks = remarks ? `${remarks} (Qty: ${quantity})` : `Qty: ${quantity}`;
       }
 
-      const res = await fetch("http://localhost:8000/api/v1/expenses", {
+      await apiFetch("/expenses", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           expense_date,
           item_name,
@@ -404,10 +686,7 @@ function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void 
           remarks: finalRemarks || null,
         }),
       });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText);
-      }
+
       toast.success("Transaction added");
       onClose();
     } catch (e) {
@@ -522,7 +801,7 @@ function NewTxDialog({ cats, onClose }: { cats: Category[]; onClose: () => void 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {["Cash", "Card", "UPI", "Net Banking", "Wallet", "Unknown"].map((m) => (
+                {paymentMethods.map((m) => (
                   <SelectItem key={m} value={m}>
                     {m}
                   </SelectItem>

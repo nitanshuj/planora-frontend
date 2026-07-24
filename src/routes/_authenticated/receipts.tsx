@@ -12,9 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Upload, FileText, Check, X, ImageIcon } from "lucide-react";
+import { Upload, FileText, Check, X, ImageIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatINR, formatDateHelper } from "@/lib/utils";
+import { apiFetch } from "@/lib/api-client";
 
 export const Route = createFileRoute("/_authenticated/receipts")({
   component: ReceiptsPage,
@@ -97,13 +98,7 @@ function ReceiptsPage() {
 
   const { data: cats = [] } = useQuery({
     queryKey: ["categories"],
-    queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch("http://localhost:8000/api/v1/categories", { headers });
-      if (!res.ok) throw new Error("Failed to fetch categories");
-      return await res.json();
-    },
+    queryFn: () => apiFetch("/categories"),
   });
 
   const allCategories = useMemo(() => {
@@ -117,40 +112,50 @@ function ReceiptsPage() {
     return list;
   }, [cats]);
 
-  const { data: recent = [] } = useQuery({
-    queryKey: ["receipts"],
+  const { data: paymentMethods = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["payment-methods"],
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch("http://localhost:8000/api/v1/receipts", { headers });
-      if (!res.ok) throw new Error("Failed to fetch receipts");
-      return await res.json();
+      try {
+        return await apiFetch("/payment-methods");
+      } catch {
+        return [];
+      }
     },
   });
 
+  const allPaymentMethods = useMemo(() => {
+    const defaults = ["Cash", "Card", "UPI", "Net Banking", "Wallet", "Unknown"];
+    const list = paymentMethods.map((pm) => pm.name);
+    defaults.forEach((d) => {
+      if (!list.some((m) => m.toLowerCase() === d.toLowerCase())) {
+        list.push(d);
+      }
+    });
+    return list;
+  }, [paymentMethods]);
+
+  const { data: recent = [] } = useQuery({
+    queryKey: ["receipts"],
+    queryFn: () => apiFetch("/receipts"),
+  });
+
   const upload = useCallback(async (file: File) => {
+    // Instant client-side check for 2MB limit before transmitting network bytes
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("File size exceeds the 2MB limit. Please choose a smaller image.");
+      return;
+    }
+
     setStatus("uploading");
     setPreview(URL.createObjectURL(file));
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("http://localhost:8000/api/v1/receipts/upload", {
+      const result = await apiFetch("/receipts/upload", {
         method: "POST",
-        headers,
         body: formData,
       });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || "Extraction failed");
-      }
-
-      const result = await res.json();
 
       let expense_date = result.expense_date;
       // Format date in DD-MMM-YYYY format if present
@@ -196,12 +201,6 @@ function ReceiptsPage() {
   const confirm = async () => {
     if (!extracted) return;
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
       // Convert DD-MMM-YYYY back to YYYY-MM-DD for backend
       let formattedDate = extracted.expense_date ?? new Date().toISOString().slice(0, 10);
       if (formattedDate) {
@@ -244,19 +243,11 @@ function ReceiptsPage() {
         remarks: item.remarks,
       }));
 
-      const res = await fetch(
-        `http://localhost:8000/api/v1/receipts/${extracted.receipt_id}/confirm`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || "Save failed");
-      }
+      await apiFetch(`/receipts/${extracted.receipt_id}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       toast.success("Receipt saved & expenses created");
       qc.invalidateQueries({ queryKey: ["expenses"] });
@@ -272,6 +263,13 @@ function ReceiptsPage() {
     const newItems = [...extracted.items];
     newItems[index] = { ...newItems[index], [key]: val };
     setExtracted({ ...extracted, items: newItems });
+  };
+
+  const removeItem = (index: number) => {
+    if (!extracted) return;
+    const newItems = extracted.items.filter((_, i) => i !== index);
+    setExtracted({ ...extracted, items: newItems });
+    toast.success("Item removed from receipt verification");
   };
 
   const reset = () => {
@@ -314,7 +312,7 @@ function ReceiptsPage() {
             <Upload className="h-6 w-6" />
           </div>
           <div className="mt-4 font-medium">Drop a receipt or click to browse</div>
-          <div className="text-sm text-muted-foreground mt-1">PNG, JPG, WEBP — up to ~5 MB</div>
+          <div className="text-sm text-muted-foreground mt-1">PNG, JPG, WEBP — max 2 MB</div>
           <input
             type="file"
             accept="image/*"
@@ -425,11 +423,21 @@ function ReceiptsPage() {
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Payment Method</Label>
-                  <Input
-                    value={extracted.payment_method ?? ""}
-                    onChange={(e) => setExtracted({ ...extracted, payment_method: e.target.value })}
-                    placeholder="Cash, Card, UPI, etc."
-                  />
+                  <Select
+                    value={extracted.payment_method ?? allPaymentMethods[0] ?? "Cash"}
+                    onValueChange={(val) => setExtracted({ ...extracted, payment_method: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allPaymentMethods.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Service</Label>
@@ -453,7 +461,7 @@ function ReceiptsPage() {
           <div className="space-y-3">
             <Label className="text-sm font-semibold">Extracted Line Items</Label>
             <div className="border rounded-xl overflow-hidden divide-y">
-              <div className="grid grid-cols-[2fr_1fr_1.5fr_1.5fr_1fr_1fr_1.5fr] gap-2 px-4 py-2 bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="grid grid-cols-[2fr_1fr_1.5fr_1.5fr_1fr_1fr_1.5fr_35px] gap-2 px-4 py-2 bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <div>Item Name</div>
                 <div>Service</div>
                 <div>Category</div>
@@ -461,12 +469,13 @@ function ReceiptsPage() {
                 <div className="text-right">Price (Total)</div>
                 <div>Brand</div>
                 <div>Remarks</div>
+                <div />
               </div>
               <div className="divide-y max-h-96 overflow-y-auto">
                 {extracted.items.map((it, i) => (
                   <div
                     key={i}
-                    className="grid grid-cols-[2fr_1fr_1.5fr_1.5fr_1fr_1fr_1.5fr] gap-2 px-4 py-2 items-center text-sm"
+                    className="grid grid-cols-[2fr_1fr_1.5fr_1.5fr_1fr_1fr_1.5fr_35px] gap-2 px-4 py-2 items-center text-sm"
                   >
                     <Input
                       value={it.item_name}
@@ -513,8 +522,23 @@ function ReceiptsPage() {
                       onChange={(e) => updateItem(i, "remarks", e.target.value || null)}
                       className="h-8 text-xs"
                     />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={() => removeItem(i)}
+                      title="Delete item"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
                   </div>
                 ))}
+
+                {extracted.items.length === 0 && (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    All items removed. You can discard or re-upload a receipt.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -523,7 +547,7 @@ function ReceiptsPage() {
             <Button variant="outline" onClick={reset} className="gap-2">
               <X className="h-4 w-4" /> Discard
             </Button>
-            <Button onClick={confirm} className="gap-2">
+            <Button onClick={confirm} disabled={extracted.items.length === 0} className="gap-2">
               <Check className="h-4 w-4" /> Save all expenses
             </Button>
           </div>

@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "postbuild": "node -e \"const fs=require('fs'); const path=require('path'); const files=fs.readdirSync('dist/client/assets'); const entry=files.find(f=>f.startsWith('index-')&&f.endsWith('.js')); const html=fs.readFileSync('index.html','utf8').replace('/src/client.tsx','/assets/'+entry); fs.writeFileSync('dist/client/index.html', html);\"",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",

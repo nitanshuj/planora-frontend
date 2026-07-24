@@ -14,7 +14,13 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const backendUrl = process.env.BACKEND_API_URL || "http://localhost:8000";
+    const rawUrl =
+      process.env.VITE_API_BASE_URL ||
+      process.env.VITE_BACKEND_API_URL ||
+      process.env.BACKEND_API_URL ||
+      "http://localhost:8000";
+    const backendUrl = rawUrl.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
+
 
     try {
       const res = await fetch(`${backendUrl}/api/v1/auth/session`, {

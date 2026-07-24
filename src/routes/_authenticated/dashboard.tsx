@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/select";
 import { formatINR } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-client";
+import { API_BASE_URL } from "@/lib/api";
+
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -385,7 +387,7 @@ function Dashboard() {
     queryFn: async () => {
       const token = localStorage.getItem("auth_token");
       if (!token) return null;
-      const res = await fetch("http://localhost:8000/api/v1/auth/session", {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/session`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return null;

@@ -4,6 +4,7 @@ import { LayoutDashboard, Receipt, Table2, Wallet, Search, LogOut } from "lucide
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
+import { API_BASE_URL } from "@/lib/api";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -20,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
     if (token) {
-      fetch("http://localhost:8000/api/v1/auth/session", {
+      fetch(`${API_BASE_URL}/api/v1/auth/session`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => {
@@ -54,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const token = localStorage.getItem("auth_token");
     if (token) {
-      await fetch("http://localhost:8000/api/v1/auth/logout", {
+      await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});

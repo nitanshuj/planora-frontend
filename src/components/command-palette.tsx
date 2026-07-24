@@ -9,6 +9,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { LayoutDashboard, Receipt, Table2, LogOut } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 
 export function CommandPalette({
   open,
@@ -45,7 +46,7 @@ export function CommandPalette({
               onOpenChange(false);
               const token = localStorage.getItem("auth_token");
               if (token) {
-                await fetch("http://localhost:8000/api/v1/auth/logout", {
+                await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
                   method: "POST",
                   headers: { Authorization: `Bearer ${token}` },
                 }).catch(() => {});

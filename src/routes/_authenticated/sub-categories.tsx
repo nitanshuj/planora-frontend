@@ -1,7 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Target, Edit2, Save, Plus, AlertCircle, Trash2, Filter, Layers, BarChart3, Calendar } from "lucide-react";
+import {
+  Target,
+  Edit2,
+  Save,
+  Plus,
+  AlertCircle,
+  Trash2,
+  Filter,
+  Layers,
+  BarChart3,
+  Calendar,
+} from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,22 +93,46 @@ export function SubCategoriesPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  const { data: categories = [], isLoading, error } = useQuery<Category[]>({
+  const {
+    data: categories = [],
+    isLoading,
+    error,
+  } = useQuery<Category[]>({
     queryKey: ["categories", selectedMonth],
     queryFn: () => apiFetch(`/categories?month_year=${selectedMonth}`),
   });
 
-  const { data: expenses = [] } = useQuery<{ category: string; sub_category?: string; item_name?: string; total_paid: number; expense_date: string }[]>({
+  const { data: expenses = [] } = useQuery<
+    {
+      category: string;
+      sub_category?: string;
+      item_name?: string;
+      total_paid: number;
+      expense_date: string;
+    }[]
+  >({
     queryKey: ["expenses"],
     queryFn: () => apiFetch("/expenses"),
   });
 
   const subCategoryLimitData = useMemo(() => {
-    const subList: { id: string; name: string; categoryName: string; spend: number; limit: number; pct: number; status: string }[] = [];
+    const subList: {
+      id: string;
+      name: string;
+      categoryName: string;
+      spend: number;
+      limit: number;
+      pct: number;
+      status: string;
+    }[] = [];
     categories.forEach((cat) => {
       if (cat.sub_categories) {
         cat.sub_categories.forEach((sub) => {
-          if (sub.monthly_limit !== null && sub.monthly_limit !== undefined && Number(sub.monthly_limit) > 0) {
+          if (
+            sub.monthly_limit !== null &&
+            sub.monthly_limit !== undefined &&
+            Number(sub.monthly_limit) > 0
+          ) {
             const subNameClean = sub.name.trim().toLowerCase();
             const catNameClean = cat.name.trim().toLowerCase();
             const spend = expenses
@@ -242,7 +277,7 @@ export function SubCategoriesPage() {
   const displayedSubCategories = useMemo(() => {
     if (showAll) return allSubCategories;
     return allSubCategories.filter(
-      (sub) => sub.monthly_limit !== null && sub.monthly_limit !== undefined
+      (sub) => sub.monthly_limit !== null && sub.monthly_limit !== undefined,
     );
   }, [allSubCategories, showAll]);
 
@@ -331,8 +366,18 @@ export function SubCategoriesPage() {
                   margin={{ top: 10, right: 20, left: 10, bottom: 20 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="name" stroke="oklch(0.6 0.02 260)" fontSize={12} tickLine={false} />
-                  <YAxis stroke="oklch(0.6 0.02 260)" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v}`} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={12}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
                   <Tooltip
                     formatter={(value: number, name: string) => [formatINR(value), name]}
                     contentStyle={{
@@ -344,7 +389,12 @@ export function SubCategoriesPage() {
                   <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
                   <Bar dataKey="Monthly Limit" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={24} />
                   <Bar dataKey="Actual Spend" fill="#F87171" radius={[4, 4, 0, 0]} barSize={24} />
-                  <Bar dataKey="Remaining Budget" fill="#FBBF24" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar
+                    dataKey="Remaining Budget"
+                    fill="#FBBF24"
+                    radius={[4, 4, 0, 0]}
+                    barSize={24}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -409,7 +459,9 @@ export function SubCategoriesPage() {
                 }}
               >
                 <SelectTrigger className="bg-background text-sm">
-                  <SelectValue placeholder={selectedCatId ? "Select Sub-Category..." : "Select Category First"} />
+                  <SelectValue
+                    placeholder={selectedCatId ? "Select Sub-Category..." : "Select Category First"}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {availableSubCatsForSelectedCat.map((s) => (
@@ -457,7 +509,8 @@ export function SubCategoriesPage() {
                 onClick={handleAddSubCategoryLimit}
                 disabled={
                   !selectedCatId ||
-                  (!selectedSubId || (selectedSubId === "NEW" && !customSubName.trim())) ||
+                  !selectedSubId ||
+                  (selectedSubId === "NEW" && !customSubName.trim()) ||
                   !addLimitValue.trim() ||
                   updateSubCategoryMutation.isPending ||
                   createSubCategoryMutation.isPending
@@ -481,7 +534,8 @@ export function SubCategoriesPage() {
         {displayedSubCategories.length === 0 ? (
           <Card className="p-8 text-center border-dashed">
             <div className="text-muted-foreground text-sm">
-              No sub-category limits configured yet. Select a sub-category above to set a monthly limit!
+              No sub-category limits configured yet. Select a sub-category above to set a monthly
+              limit!
             </div>
           </Card>
         ) : (
@@ -497,7 +551,10 @@ export function SubCategoriesPage() {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground text-sm">{sub.name}</span>
-                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-normal text-muted-foreground"
+                      >
                         {sub.category_name}
                       </Badge>
                     </div>
@@ -549,7 +606,7 @@ export function SubCategoriesPage() {
                           setEditLimitValue(
                             sub.monthly_limit !== null && sub.monthly_limit !== undefined
                               ? String(sub.monthly_limit)
-                              : ""
+                              : "",
                           );
                         }}
                       >

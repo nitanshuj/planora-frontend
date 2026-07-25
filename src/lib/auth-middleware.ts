@@ -21,7 +21,6 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
       "http://localhost:8000";
     const backendUrl = rawUrl.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
 
-
     try {
       const res = await fetch(`${backendUrl}/api/v1/auth/session`, {
         headers: {

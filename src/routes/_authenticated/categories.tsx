@@ -1,7 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Layers, Edit2, Save, Plus, AlertCircle, Trash2, Filter, BarChart3, Calendar } from "lucide-react";
+import {
+  Layers,
+  Edit2,
+  Save,
+  Plus,
+  AlertCircle,
+  Trash2,
+  Filter,
+  BarChart3,
+  Calendar,
+} from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +52,7 @@ type Category = {
 
 export function CategoriesPage() {
   const queryClient = useQueryClient();
-  
+
   // Selection state for adding a category limit
   const [selectedCatId, setSelectedCatId] = useState<string>("");
   const [addLimitValue, setAddLimitValue] = useState<string>("");
@@ -71,23 +81,36 @@ export function CategoriesPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  const { data: categories = [], isLoading, error } = useQuery<Category[]>({
+  const {
+    data: categories = [],
+    isLoading,
+    error,
+  } = useQuery<Category[]>({
     queryKey: ["categories", selectedMonth],
     queryFn: () => apiFetch(`/categories?month_year=${selectedMonth}`),
   });
 
-  const { data: expenses = [] } = useQuery<{ category: string; total_paid: number; expense_date: string }[]>({
+  const { data: expenses = [] } = useQuery<
+    { category: string; total_paid: number; expense_date: string }[]
+  >({
     queryKey: ["expenses"],
     queryFn: () => apiFetch("/expenses"),
   });
 
   const categoryLimitData = useMemo(() => {
     return categories
-      .filter((c) => c.monthly_limit !== null && c.monthly_limit !== undefined && Number(c.monthly_limit) > 0)
+      .filter(
+        (c) =>
+          c.monthly_limit !== null && c.monthly_limit !== undefined && Number(c.monthly_limit) > 0,
+      )
       .map((c) => {
         const catNameClean = c.name.trim().toLowerCase();
         const spend = expenses
-          .filter((e) => e.expense_date?.startsWith(selectedMonth) && (e.category || "").trim().toLowerCase() === catNameClean)
+          .filter(
+            (e) =>
+              e.expense_date?.startsWith(selectedMonth) &&
+              (e.category || "").trim().toLowerCase() === catNameClean,
+          )
           .reduce((sum, e) => sum + Number(e.total_paid), 0);
         const limit = Number(c.monthly_limit);
         const pct = limit > 0 ? (spend / limit) * 100 : 0;
@@ -132,7 +155,9 @@ export function CategoriesPage() {
 
   const handleStartEdit = (id: string, currentLimit?: number | null) => {
     setEditingId(id);
-    setEditLimitValue(currentLimit !== undefined && currentLimit !== null ? String(currentLimit) : "");
+    setEditLimitValue(
+      currentLimit !== undefined && currentLimit !== null ? String(currentLimit) : "",
+    );
   };
 
   const handleAddCategoryLimit = () => {
@@ -151,15 +176,17 @@ export function CategoriesPage() {
   };
 
   // Categories that currently have a monthly limit set
-  const categoriesWithLimits = categories.filter((c) => c.monthly_limit !== null && c.monthly_limit !== undefined);
-  
+  const categoriesWithLimits = categories.filter(
+    (c) => c.monthly_limit !== null && c.monthly_limit !== undefined,
+  );
+
   // Categories available to set a new limit on
-  const categoriesWithoutLimits = categories.filter((c) => c.monthly_limit === null || c.monthly_limit === undefined);
+  const categoriesWithoutLimits = categories.filter(
+    (c) => c.monthly_limit === null || c.monthly_limit === undefined,
+  );
 
   // Active display list based on showAll toggle
-  const displayedCategories = showAll
-    ? categories
-    : categoriesWithLimits;
+  const displayedCategories = showAll ? categories : categoriesWithLimits;
 
   if (isLoading) {
     return (
@@ -246,8 +273,18 @@ export function CategoriesPage() {
                   margin={{ top: 10, right: 20, left: 10, bottom: 20 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="name" stroke="oklch(0.6 0.02 260)" fontSize={12} tickLine={false} />
-                  <YAxis stroke="oklch(0.6 0.02 260)" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v}`} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={12}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
                   <Tooltip
                     formatter={(value: number, name: string) => [formatINR(value), name]}
                     contentStyle={{
@@ -259,7 +296,12 @@ export function CategoriesPage() {
                   <Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
                   <Bar dataKey="Monthly Limit" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={24} />
                   <Bar dataKey="Actual Spend" fill="#F87171" radius={[4, 4, 0, 0]} barSize={24} />
-                  <Bar dataKey="Remaining Budget" fill="#FBBF24" radius={[4, 4, 0, 0]} barSize={24} />
+                  <Bar
+                    dataKey="Remaining Budget"
+                    fill="#FBBF24"
+                    radius={[4, 4, 0, 0]}
+                    barSize={24}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -342,7 +384,10 @@ export function CategoriesPage() {
             const isCatEditing = editingId === cat.id;
 
             return (
-              <Card key={cat.id} className="overflow-hidden transition-all duration-200 hover:shadow-sm">
+              <Card
+                key={cat.id}
+                className="overflow-hidden transition-all duration-200 hover:shadow-sm"
+              >
                 <CardHeader className="py-4 bg-muted/20">
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2">

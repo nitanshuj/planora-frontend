@@ -28,7 +28,6 @@ import { formatINR } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-client";
 import { API_BASE_URL } from "@/lib/api";
 
-
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
@@ -173,25 +172,25 @@ function Dashboard() {
     return [];
   }, [expenses, isYearMode, selectedYear, selectedMonthNum]);
 
-  const totalThisPeriod = discretionaryExpenses.reduce(
-    (s, e) => s + Number(e.total_paid),
-    0,
-  );
-  const totalPrevPeriod = prevPeriodExpenses.reduce(
-    (s, e) => s + Number(e.total_paid),
-    0,
-  );
+  const totalThisPeriod = discretionaryExpenses.reduce((s, e) => s + Number(e.total_paid), 0);
+  const totalPrevPeriod = prevPeriodExpenses.reduce((s, e) => s + Number(e.total_paid), 0);
   const delta =
-    totalPrevPeriod > 0
-      ? ((totalThisPeriod - totalPrevPeriod) / totalPrevPeriod) * 100
-      : 0;
+    totalPrevPeriod > 0 ? ((totalThisPeriod - totalPrevPeriod) / totalPrevPeriod) * 100 : 0;
 
   // Primary Breakdown Chart Data (Daily for Month mode, Monthly for Year mode)
   const breakdownChartData = useMemo(() => {
     if (isYearMode) {
-      const map = new Map<number, { label: string; monthName: string; spend: number; count: number }>();
+      const map = new Map<
+        number,
+        { label: string; monthName: string; spend: number; count: number }
+      >();
       for (let m = 1; m <= 12; m++) {
-        map.set(m, { label: MONTH_NAMES[m - 1], monthName: MONTH_NAMES[m - 1], spend: 0, count: 0 });
+        map.set(m, {
+          label: MONTH_NAMES[m - 1],
+          monthName: MONTH_NAMES[m - 1],
+          spend: 0,
+          count: 0,
+        });
       }
       for (const e of discretionaryExpenses) {
         const dateObj = new Date(e.expense_date);
@@ -394,8 +393,7 @@ function Dashboard() {
     },
   });
 
-  const userName =
-    sessionData?.user?.full_name || sessionData?.user?.email?.split("@")[0];
+  const userName = sessionData?.user?.full_name || sessionData?.user?.email?.split("@")[0];
 
   const prevPeriodLabel = isYearMode
     ? `${selectedYear - 1}`
@@ -467,7 +465,10 @@ function Dashboard() {
 
         <div className="h-72">
           <ResponsiveContainer>
-            <BarChart data={breakdownChartData} margin={{ top: 15, right: 10, bottom: 5, left: 10 }}>
+            <BarChart
+              data={breakdownChartData}
+              margin={{ top: 15, right: 10, bottom: 5, left: 10 }}
+            >
               <CartesianGrid
                 stroke="oklch(0.92 0.008 260)"
                 strokeDasharray="3 3"
@@ -595,9 +596,7 @@ function Dashboard() {
 
         <div className="card-soft p-5">
           <div className="text-sm font-semibold mb-1">Spending breakdown</div>
-          <div className="text-xs text-muted-foreground mb-3">
-            Expenditure by area till now
-          </div>
+          <div className="text-xs text-muted-foreground mb-3">Expenditure by area till now</div>
           {categoryData.length === 0 ? (
             <div className="h-72 grid place-items-center text-sm text-muted-foreground">
               No spending recorded for {formatPeriodLabel(selectedPeriod)}.
@@ -647,7 +646,6 @@ function Dashboard() {
           )}
         </div>
       </div>
-
 
       <div className="card-soft p-5">
         <div className="text-sm font-semibold mb-1">Daily & Item Spending</div>
@@ -731,4 +729,3 @@ function StatCard({
     </div>
   );
 }
-

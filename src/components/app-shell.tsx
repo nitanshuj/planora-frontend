@@ -1,6 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Receipt, Table2, Wallet, Search, LogOut, Layers, Target } from "lucide-react";
+import {
+  LayoutDashboard,
+  Receipt,
+  Table2,
+  Wallet,
+  Search,
+  LogOut,
+  Layers,
+  Target,
+  FileSpreadsheet,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "./command-palette";
@@ -12,6 +22,7 @@ const NAV = [
   { to: "/receipts", label: "AI Receipt Scanner", icon: Receipt },
   { to: "/categories", label: "Category Limits", icon: Layers },
   { to: "/sub-categories", label: "Sub-Category Limits", icon: Target },
+  { to: "/export", label: "Export Expense Data", icon: FileSpreadsheet },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {

@@ -6,11 +6,7 @@ const rawUrl =
 const cleanUrl = rawUrl.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
 const API_BASE_URL = `${cleanUrl}/api/v1`;
 
-
-export async function apiFetch<T = any>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+export async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("auth_token");
 
   const headers: Record<string, string> = {

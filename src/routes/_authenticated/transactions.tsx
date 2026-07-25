@@ -22,7 +22,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Search, RotateCcw, Wallet, Receipt, CreditCard, Sparkles, Calendar } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Search,
+  RotateCcw,
+  Wallet,
+  Receipt,
+  CreditCard,
+  Sparkles,
+  Calendar,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatINR, formatDateHelper } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-client";
@@ -277,7 +287,11 @@ function TransactionsPage() {
               <Plus className="h-4 w-4" /> Add transaction
             </Button>
           </DialogTrigger>
-          <NewTxDialog cats={allCategories} paymentMethods={allPaymentMethods} onClose={() => setOpen(false)} />
+          <NewTxDialog
+            cats={allCategories}
+            paymentMethods={allPaymentMethods}
+            onClose={() => setOpen(false)}
+          />
         </Dialog>
       </div>
 
@@ -294,7 +308,8 @@ function TransactionsPage() {
           </div>
           <div className="mt-2 text-2xl font-semibold num">{formatINR(total)}</div>
           <div className="text-xs text-muted-foreground mt-1 font-medium">
-            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} shown ({formatPeriodLabel(periodFilter)})
+            {filtered.length} transaction{filtered.length === 1 ? "" : "s"} shown (
+            {formatPeriodLabel(periodFilter)})
           </div>
         </div>
 
@@ -323,7 +338,9 @@ function TransactionsPage() {
             </div>
           </div>
           <div className="mt-2 text-2xl font-semibold num">{formatINR(avgSpent)}</div>
-          <div className="text-xs text-muted-foreground mt-1 font-medium">Average transaction size</div>
+          <div className="text-xs text-muted-foreground mt-1 font-medium">
+            Average transaction size
+          </div>
         </div>
       </div>
 
@@ -527,7 +544,10 @@ function TransactionsPage() {
                 >
                   <SelectTrigger className="h-8 text-xs border-transparent hover:border-border">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: catColor }} />
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ background: catColor }}
+                      />
                       <SelectValue />
                     </div>
                   </SelectTrigger>
@@ -588,10 +608,16 @@ function TransactionsPage() {
               </div>
               <div className="text-sm font-semibold text-foreground">No matching transactions</div>
               <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                No entries match your selected search or filters. Try adjusting your Category, Sub-Category, or Service filter.
+                No entries match your selected search or filters. Try adjusting your Category,
+                Sub-Category, or Service filter.
               </div>
               {isFiltered && (
-                <Button variant="outline" size="sm" onClick={resetFilters} className="mt-2 h-8 text-xs gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="mt-2 h-8 text-xs gap-1.5"
+                >
                   <RotateCcw className="h-3.5 w-3.5" /> Clear active filters
                 </Button>
               )}

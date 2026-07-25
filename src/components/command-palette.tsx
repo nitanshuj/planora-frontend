@@ -8,7 +8,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { LayoutDashboard, Receipt, Table2, LogOut } from "lucide-react";
+import { LayoutDashboard, Receipt, Table2, LogOut, Layers, Target } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
 
 export function CommandPalette({
@@ -36,7 +36,13 @@ export function CommandPalette({
             <Table2 className="mr-2 h-4 w-4" /> Transactions
           </CommandItem>
           <CommandItem onSelect={() => go("/receipts")}>
-            <Receipt className="mr-2 h-4 w-4" /> Receipts
+            <Receipt className="mr-2 h-4 w-4" /> AI Receipt Scanner
+          </CommandItem>
+          <CommandItem onSelect={() => go("/categories")}>
+            <Layers className="mr-2 h-4 w-4" /> Category Limits
+          </CommandItem>
+          <CommandItem onSelect={() => go("/sub-categories")}>
+            <Target className="mr-2 h-4 w-4" /> Sub-Category Limits
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />

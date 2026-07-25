@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Wallet, TrendingUp, TrendingDown, Calendar } from "lucide-react";
 import {
@@ -10,14 +10,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  PieChart,
-  Pie,
   Cell,
-  Legend,
   BarChart,
   Bar,
 } from "recharts";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -46,7 +42,20 @@ type Expense = {
   sub_category?: string | null;
   remarks?: string | null;
 };
-type Category = { id: string; name: string; is_mandatory: boolean };
+
+type SubCategory = {
+  id: string;
+  name: string;
+  monthly_limit?: number | null;
+};
+
+type Category = {
+  id: string;
+  name: string;
+  is_mandatory: boolean;
+  monthly_limit?: number | null;
+  sub_categories?: SubCategory[];
+};
 
 const MONTH_NAMES = [
   "Jan",
@@ -177,10 +186,6 @@ function Dashboard() {
       ? ((totalThisPeriod - totalPrevPeriod) / totalPrevPeriod) * 100
       : 0;
 
-  const budgetAmount = isYearMode ? 240000 : 20000;
-  const budgetPct =
-    budgetAmount > 0 ? Math.min(100, (totalThisPeriod / budgetAmount) * 100) : 0;
-
   // Primary Breakdown Chart Data (Daily for Month mode, Monthly for Year mode)
   const breakdownChartData = useMemo(() => {
     if (isYearMode) {
@@ -245,8 +250,8 @@ function Dashboard() {
     return [];
   }, [discretionaryExpenses, isYearMode, selectedYear, selectedMonthNum]);
 
-  // Category Breakdown Pie Data with Unique Category Colors
-  const pieData = useMemo(() => {
+  // Category Breakdown Bar Data (X: Category, Y: Cost till now)
+  const categoryData = useMemo(() => {
     const totals = new Map<string, number>();
     for (const e of discretionaryExpenses) {
       if (!e.category) continue;
@@ -280,18 +285,12 @@ function Dashboard() {
       Other: "#64748B",
     };
 
-    const fallbackPalette = [
-      "#0284C7", "#E11D48", "#7C3AED", "#EA580C", "#DB2777",
-      "#059669", "#4F46E5", "#F59E0B", "#0891B2", "#9333EA",
-      "#C026D3", "#2563EB", "#10B981", "#65A30D", "#455A64"
-    ];
-
     const entries = Array.from(totals.entries()).filter((d) => d[1] > 0);
+    entries.sort((a, b) => b[1] - a[1]);
 
-    return entries.map(([name, value], idx) => {
+    return entries.map(([name, value]) => {
       let color = categoryColors[name];
       if (!color) {
-        // Deterministic HSL hue based on category name string hash
         let hash = 0;
         for (let i = 0; i < name.length; i++) {
           hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -524,7 +523,7 @@ function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <StatCard
           title={isYearMode ? `Spent in ${selectedYear}` : "Spent this month"}
           value={formatINR(totalThisPeriod)}
@@ -538,21 +537,10 @@ function Dashboard() {
           sub={`${formatINR(totalPrevPeriod)} (${prevPeriodLabel})`}
           tone={delta >= 0 ? "warn" : "good"}
         />
-        <div className="card-soft p-5">
-          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-            {isYearMode ? "Annual budget" : "Monthly budget"}
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <div className="text-2xl font-semibold num">{formatINR(totalThisPeriod)}</div>
-            <div className="text-sm text-muted-foreground num">/ {formatINR(budgetAmount)}</div>
-          </div>
-          <Progress value={budgetPct} className="mt-3 h-2" />
-          <div className="mt-1 text-xs text-muted-foreground">{budgetPct.toFixed(0)}% used</div>
-        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="card-soft p-5 lg:col-span-3">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="card-soft p-5">
           <div className="flex items-center justify-between mb-3">
             <div>
               <div className="text-sm font-semibold">Cumulative spend</div>
@@ -605,44 +593,66 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="card-soft p-5 lg:col-span-2">
-          <div className="text-sm font-semibold mb-3">Category breakdown</div>
-          {pieData.length === 0 ? (
+        <div className="card-soft p-5">
+          <div className="text-sm font-semibold mb-1">Spending breakdown</div>
+          <div className="text-xs text-muted-foreground mb-3">
+            Expenditure by area till now
+          </div>
+          {categoryData.length === 0 ? (
             <div className="h-72 grid place-items-center text-sm text-muted-foreground">
               No spending recorded for {formatPeriodLabel(selectedPeriod)}.
             </div>
           ) : (
             <div className="h-72">
               <ResponsiveContainer>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    innerRadius={55}
-                    outerRadius={95}
-                    paddingAngle={2}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {pieData.map((d, i) => (
-                      <Cell key={i} fill={d.color} />
-                    ))}
-                  </Pie>
+                <BarChart data={categoryData} margin={{ top: 10, right: 10, left: 10, bottom: 25 }}>
+                  <CartesianGrid
+                    stroke="oklch(0.92 0.008 260)"
+                    strokeDasharray="3 3"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="name"
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis
+                    stroke="oklch(0.6 0.02 260)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
                   <Tooltip
                     formatter={(v: number) => formatINR(v)}
-                    contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.008 260)" }}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid oklch(0.92 0.008 260)",
+                      backgroundColor: "var(--color-card)",
+                    }}
                   />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={45}>
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cat-cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
       </div>
 
+
       <div className="card-soft p-5">
-        <div className="text-sm font-semibold mb-1">Sub-category Spending</div>
+        <div className="text-sm font-semibold mb-1">Daily & Item Spending</div>
         <div className="text-xs text-muted-foreground mb-4">
-          Spending breakdown across key daily sub-categories ({formatPeriodLabel(selectedPeriod)})
+          Spending breakdown across key items ({formatPeriodLabel(selectedPeriod)})
         </div>
         <div className="h-72">
           <ResponsiveContainer>

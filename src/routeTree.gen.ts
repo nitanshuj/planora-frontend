@@ -13,8 +13,10 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTransactionsRouteImport } from './routes/_authenticated/transactions'
+import { Route as AuthenticatedSubCategoriesRouteImport } from './routes/_authenticated/sub-categories'
 import { Route as AuthenticatedReceiptsRouteImport } from './routes/_authenticated/receipts'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCategoriesRouteImport } from './routes/_authenticated/categories'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -36,6 +38,12 @@ const AuthenticatedTransactionsRoute =
     path: '/transactions',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSubCategoriesRoute =
+  AuthenticatedSubCategoriesRouteImport.update({
+    id: '/sub-categories',
+    path: '/sub-categories',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedReceiptsRoute = AuthenticatedReceiptsRouteImport.update({
   id: '/receipts',
   path: '/receipts',
@@ -46,19 +54,28 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCategoriesRoute = AuthenticatedCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/categories': typeof AuthenticatedCategoriesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/receipts': typeof AuthenticatedReceiptsRoute
+  '/sub-categories': typeof AuthenticatedSubCategoriesRoute
   '/transactions': typeof AuthenticatedTransactionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/categories': typeof AuthenticatedCategoriesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/receipts': typeof AuthenticatedReceiptsRoute
+  '/sub-categories': typeof AuthenticatedSubCategoriesRoute
   '/transactions': typeof AuthenticatedTransactionsRoute
 }
 export interface FileRoutesById {
@@ -66,22 +83,40 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/categories': typeof AuthenticatedCategoriesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/receipts': typeof AuthenticatedReceiptsRoute
+  '/_authenticated/sub-categories': typeof AuthenticatedSubCategoriesRoute
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/receipts' | '/transactions'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/categories'
+    | '/dashboard'
+    | '/receipts'
+    | '/sub-categories'
+    | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/receipts' | '/transactions'
+  to:
+    | '/'
+    | '/auth'
+    | '/categories'
+    | '/dashboard'
+    | '/receipts'
+    | '/sub-categories'
+    | '/transactions'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/categories'
     | '/_authenticated/dashboard'
     | '/_authenticated/receipts'
+    | '/_authenticated/sub-categories'
     | '/_authenticated/transactions'
   fileRoutesById: FileRoutesById
 }
@@ -121,6 +156,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTransactionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sub-categories': {
+      id: '/_authenticated/sub-categories'
+      path: '/sub-categories'
+      fullPath: '/sub-categories'
+      preLoaderRoute: typeof AuthenticatedSubCategoriesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/receipts': {
       id: '/_authenticated/receipts'
       path: '/receipts'
@@ -135,18 +177,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/categories': {
+      id: '/_authenticated/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AuthenticatedCategoriesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCategoriesRoute: typeof AuthenticatedCategoriesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedReceiptsRoute: typeof AuthenticatedReceiptsRoute
+  AuthenticatedSubCategoriesRoute: typeof AuthenticatedSubCategoriesRoute
   AuthenticatedTransactionsRoute: typeof AuthenticatedTransactionsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCategoriesRoute: AuthenticatedCategoriesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedReceiptsRoute: AuthenticatedReceiptsRoute,
+  AuthenticatedSubCategoriesRoute: AuthenticatedSubCategoriesRoute,
   AuthenticatedTransactionsRoute: AuthenticatedTransactionsRoute,
 }
 

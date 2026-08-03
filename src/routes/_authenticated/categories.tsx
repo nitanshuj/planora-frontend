@@ -11,6 +11,8 @@ import {
   Filter,
   BarChart3,
   Calendar,
+  FolderPlus,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { apiFetch } from "@/lib/api-client";
 import { formatINR } from "@/lib/utils";
+import { toast } from "sonner";
 
 import {
   BarChart,
@@ -52,6 +55,11 @@ type Category = {
 
 export function CategoriesPage() {
   const queryClient = useQueryClient();
+
+  // New Category creation state
+  const [newCatName, setNewCatName] = useState<string>("");
+  const [newCatIsMandatory, setNewCatIsMandatory] = useState<boolean>(false);
+  const [newCatLimit, setNewCatLimit] = useState<string>("");
 
   // Selection state for adding a category limit
   const [selectedCatId, setSelectedCatId] = useState<string>("");
@@ -137,6 +145,53 @@ export function CategoriesPage() {
     });
   }, [categoryLimitData]);
 
+  const createCategoryMutation = useMutation({
+    mutationFn: async (payload: { name: string; is_mandatory: boolean; monthly_limit?: number | null; month_year?: string }) => {
+      return apiFetch("/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      setNewCatName("");
+      setNewCatIsMandatory(false);
+      setNewCatLimit("");
+      toast.success(`Category "${data.name}" created successfully!`);
+    },
+    onError: (err: Error) => {
+      toast.error(`Failed to create category: ${err.message}`);
+    },
+  });
+
+  const migrateGroceryMutation = useMutation({
+    mutationFn: async () => {
+      return apiFetch("/categories/migrate-grocery", {
+        method: "POST",
+      });
+    },
+    onSuccess: (res: { updated_records: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      toast.success(`Migrated ${res.updated_records} "Grocery" items to "Groceries"!`);
+    },
+    onError: (err: Error) => {
+      toast.error(`Migration failed: ${err.message}`);
+    },
+  });
+
+  const handleCreateCategory = () => {
+    if (!newCatName.trim()) return;
+    const limitNum = newCatLimit.trim() === "" ? null : parseFloat(newCatLimit);
+    createCategoryMutation.mutate({
+      name: newCatName.trim(),
+      is_mandatory: newCatIsMandatory,
+      monthly_limit: limitNum,
+      month_year: selectedMonth,
+    });
+  };
+
   const updateCategoryMutation = useMutation({
     mutationFn: async ({ id, monthly_limit }: { id: string; monthly_limit: number | null }) => {
       return apiFetch(`/categories/${id}`, {
@@ -218,22 +273,90 @@ export function CategoriesPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Category Monthly Limits</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Category Management</h1>
           <p className="text-muted-foreground text-sm">
-            Select a category to set its monthly budget limit.
+            Create new categories and set monthly spending limits.
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 text-xs"
-          onClick={() => setShowAll((prev) => !prev)}
-        >
-          <Filter className="h-3.5 w-3.5" />
-          {showAll ? "Showing All Categories" : "Showing Only Configured Limits"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs"
+            onClick={() => migrateGroceryMutation.mutate()}
+            disabled={migrateGroceryMutation.isPending}
+            title="Consolidate any existing 'Grocery' expense items into 'Groceries'"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${migrateGroceryMutation.isPending ? "animate-spin" : ""}`} />
+            {migrateGroceryMutation.isPending ? "Migrating..." : "Consolidate 'Grocery' → 'Groceries'"}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs"
+            onClick={() => setShowAll((prev) => !prev)}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            {showAll ? "Showing All Categories" : "Showing Only Configured Limits"}
+          </Button>
+        </div>
       </div>
+
+      {/* Create New Category Card */}
+      <Card className="border-emerald-500/20 bg-emerald-500/5 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <FolderPlus className="h-4 w-4 text-emerald-600" /> Create New Category
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Add a new category (such as "Subscriptions") dynamically to Supabase.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="w-full sm:w-64">
+              <Input
+                type="text"
+                placeholder="Category Name (e.g. Subscriptions)"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                className="bg-background text-sm"
+              />
+            </div>
+
+            <div className="w-full sm:w-44">
+              <Input
+                type="number"
+                placeholder="Monthly limit (₹) optional"
+                value={newCatLimit}
+                onChange={(e) => setNewCatLimit(e.target.value)}
+                className="bg-background text-sm"
+                min={0}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={newCatIsMandatory}
+                onChange={(e) => setNewCatIsMandatory(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Mandatory Expense
+            </label>
+
+            <Button
+              onClick={handleCreateCategory}
+              disabled={!newCatName.trim() || createCategoryMutation.isPending}
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <Plus className="h-4 w-4" /> Create Category
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Category Spend vs. Monthly Limit Progress Visualization */}
       {categoryLimitData.length > 0 && (

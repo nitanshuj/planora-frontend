@@ -55,26 +55,6 @@ type Expense = {
 };
 type Category = { id: string; name: string };
 
-const DEFAULT_CATEGORIES = [
-  "Groceries",
-  "Leisure",
-  "Extra Charge",
-  "Home Items",
-  "Home-Mandatory",
-  "Food_Office",
-  "Cosmetics",
-  "Medical Health",
-  "Home",
-  "Puja",
-  "Travel",
-  "PC Rig",
-  "Clothes",
-  "Mandir",
-  "Electronics",
-  "Phone Recharge",
-  "Activa",
-];
-
 function TransactionsPage() {
   const qc = useQueryClient();
 
@@ -101,14 +81,7 @@ function TransactionsPage() {
   });
 
   const allCategories = useMemo(() => {
-    const list = [...cats];
-    const existingNames = new Set(cats.map((c) => c.name.toLowerCase()));
-    DEFAULT_CATEGORIES.forEach((name) => {
-      if (!existingNames.has(name.toLowerCase())) {
-        list.push({ id: name, name });
-      }
-    });
-    return list;
+    return cats;
   }, [cats]);
 
   // Derived unique sub-categories, services, and period options from expenses dataset

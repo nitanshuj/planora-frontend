@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
 
+import { ThemeToggle } from "@/components/theme-toggle";
+
 export const Route = createFileRoute("/")({
   ssr: false,
   component: IndexAuthPage,
@@ -92,7 +94,10 @@ function IndexAuthPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
+    <div className="min-h-screen grid lg:grid-cols-2 relative">
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
       <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
         <div className="flex items-center gap-2 text-lg font-semibold">
           <div className="h-9 w-9 rounded-xl bg-white/15 grid place-items-center backdrop-blur">

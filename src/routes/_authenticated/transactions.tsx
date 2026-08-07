@@ -463,140 +463,150 @@ function TransactionsPage() {
 
       {/* Styled Transactions Table */}
       <div className="card-soft overflow-hidden">
-        <div className="grid grid-cols-[95px_1fr_120px_130px_110px_110px_90px_35px] gap-2.5 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
-          <div>Date</div>
-          <div>Item Name</div>
-          <div>Service</div>
-          <div>Category</div>
-          <div>Sub-Category</div>
-          <div>Brand</div>
-          <div className="text-right">Total Paid</div>
-          <div />
-        </div>
-
-        <div className="divide-y divide-border/60">
-          {paginatedRows.map((r) => {
-            const colors: Record<string, string> = {
-              Groceries: "#2E7D32",
-              Dining: "#E65100",
-              Transport: "#455A64",
-              Shopping: "#6A1B9A",
-              Utilities: "#1565C0",
-              Entertainment: "#C2185B",
-              Health: "#00838F",
-              Other: "#546E7A",
-            };
-            const catColor = colors[r.category] || "#64748b";
-            return (
-              <div
-                key={r.id}
-                className="grid grid-cols-[95px_1fr_120px_130px_110px_110px_90px_35px] gap-2.5 px-4 py-2.5 items-center hover:bg-accent/40 transition-colors group text-xs"
-              >
-                <span className="font-medium text-muted-foreground truncate">
-                  {formatDateHelper(r.expense_date)}
-                </span>
-                <Input
-                  defaultValue={r.item_name}
-                  onBlur={(e) =>
-                    e.target.value !== r.item_name && update(r.id, { item_name: e.target.value })
-                  }
-                  className="h-8 text-xs border-transparent hover:border-border"
-                />
-                <Input
-                  defaultValue={r.service ?? ""}
-                  placeholder="—"
-                  onBlur={(e) =>
-                    e.target.value !== (r.service ?? "") &&
-                    update(r.id, { service: e.target.value || null })
-                  }
-                  className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground font-medium"
-                />
-                <Select
-                  value={r.category ?? "Other"}
-                  onValueChange={(v) => update(r.id, { category: v })}
-                >
-                  <SelectTrigger className="h-8 text-xs border-transparent hover:border-border">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ background: catColor }}
-                      />
-                      <SelectValue />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allCategories.map((c) => (
-                      <SelectItem key={c.id} value={c.name}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  defaultValue={r.sub_category ?? ""}
-                  placeholder="—"
-                  onBlur={(e) =>
-                    e.target.value !== (r.sub_category ?? "") &&
-                    update(r.id, { sub_category: e.target.value || null })
-                  }
-                  className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
-                />
-                <Input
-                  defaultValue={r.brand ?? ""}
-                  placeholder="—"
-                  onBlur={(e) =>
-                    e.target.value !== (r.brand ?? "") &&
-                    update(r.id, { brand: e.target.value || null })
-                  }
-                  className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
-                />
-                <Input
-                  type="number"
-                  step="0.01"
-                  defaultValue={Number(r.total_paid)}
-                  onBlur={(e) =>
-                    Number(e.target.value) !== Number(r.total_paid) &&
-                    update(r.id, { total_paid: Number(e.target.value) })
-                  }
-                  className={cn(
-                    "h-8 text-xs text-right num border-transparent hover:border-border font-medium",
-                  )}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                  onClick={() => remove(r.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              </div>
-            );
-          })}
-
-          {filtered.length === 0 && (
-            <div className="py-14 text-center space-y-2">
-              <div className="mx-auto h-12 w-12 rounded-2xl bg-muted/60 text-muted-foreground grid place-items-center">
-                <Search className="h-5 w-5 opacity-60" />
-              </div>
-              <div className="text-sm font-semibold text-foreground">No matching transactions</div>
-              <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                No entries match your selected search or filters. Try adjusting your Category,
-                Sub-Category, or Service filter.
-              </div>
-              {isFiltered && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetFilters}
-                  className="mt-2 h-8 text-xs gap-1.5"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" /> Clear active filters
-                </Button>
-              )}
+        <div className="overflow-x-auto">
+          <div className="min-w-[820px]">
+            <div className="grid grid-cols-[95px_1fr_120px_130px_110px_110px_90px_35px] gap-2.5 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60 bg-muted/30">
+              <div>Date</div>
+              <div>Item Name</div>
+              <div>Service</div>
+              <div>Category</div>
+              <div>Sub-Category</div>
+              <div>Brand</div>
+              <div className="text-right">Total Paid</div>
+              <div />
             </div>
-          )}
+
+            <div className="divide-y divide-border/60">
+              {paginatedRows.map((r) => {
+                const colors: Record<string, string> = {
+                  Groceries: "#2E7D32",
+                  Dining: "#E65100",
+                  Transport: "#455A64",
+                  Shopping: "#6A1B9A",
+                  Utilities: "#1565C0",
+                  Entertainment: "#C2185B",
+                  Health: "#00838F",
+                  Other: "#546E7A",
+                };
+                const catColor = colors[r.category] || "#64748b";
+                return (
+                  <div
+                    key={r.id}
+                    className="grid grid-cols-[95px_1fr_120px_130px_110px_110px_90px_35px] gap-2.5 px-4 py-2.5 items-center hover:bg-accent/40 transition-colors group text-xs"
+                  >
+                    <span className="font-medium text-muted-foreground truncate">
+                      {formatDateHelper(r.expense_date)}
+                    </span>
+                    <Input
+                      defaultValue={r.item_name}
+                      onBlur={(e) =>
+                        e.target.value !== r.item_name && update(r.id, { item_name: e.target.value })
+                      }
+                      className="h-8 text-xs border-transparent hover:border-border"
+                    />
+                    <Input
+                      defaultValue={r.service ?? ""}
+                      placeholder="—"
+                      onBlur={(e) =>
+                        e.target.value !== (r.service ?? "") &&
+                        update(r.id, { service: e.target.value || null })
+                      }
+                      className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground font-medium"
+                    />
+                    <Select
+                      value={r.category ?? "Other"}
+                      onValueChange={(v) => update(r.id, { category: v })}
+                    >
+                      <SelectTrigger className="h-8 text-xs border-transparent hover:border-border">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className="h-2 w-2 rounded-full shrink-0"
+                            style={{ backgroundColor: catColor }}
+                          />
+                          <SelectValue placeholder="Category" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allCategories.map((c: Category) => (
+                          <SelectItem key={c.id} value={c.name}>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: colors[c.name] || "#64748b" }}
+                              />
+                              {c.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      defaultValue={r.sub_category ?? ""}
+                      placeholder="—"
+                      onBlur={(e) =>
+                        e.target.value !== (r.sub_category ?? "") &&
+                        update(r.id, { sub_category: e.target.value || null })
+                      }
+                      className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
+                    />
+                    <Input
+                      defaultValue={r.brand ?? ""}
+                      placeholder="—"
+                      onBlur={(e) =>
+                        e.target.value !== (r.brand ?? "") &&
+                        update(r.id, { brand: e.target.value || null })
+                      }
+                      className="h-8 text-xs border-transparent hover:border-border text-muted-foreground focus:text-foreground"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      defaultValue={Number(r.total_paid)}
+                      onBlur={(e) =>
+                        Number(e.target.value) !== Number(r.total_paid) &&
+                        update(r.id, { total_paid: Number(e.target.value) })
+                      }
+                      className={cn(
+                        "h-8 text-xs text-right num border-transparent hover:border-border font-medium",
+                      )}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                      onClick={() => remove(r.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
+
+        {filtered.length === 0 && (
+          <div className="py-14 text-center space-y-2">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-muted/60 text-muted-foreground grid place-items-center">
+              <Search className="h-5 w-5 opacity-60" />
+            </div>
+            <div className="text-sm font-semibold text-foreground">No matching transactions</div>
+            <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+              No entries match your selected search or filters. Try adjusting your Category,
+              Sub-Category, or Service filter.
+            </div>
+            {isFiltered && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={resetFilters}
+                className="mt-2 h-8 text-xs gap-1.5"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Clear active filters
+              </Button>
+            )}
+          </div>
+        )}
 
         {filtered.length > 0 && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-border/60 text-xs text-muted-foreground bg-muted/10 flex-wrap gap-2">
